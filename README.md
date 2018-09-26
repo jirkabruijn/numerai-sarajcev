@@ -3,7 +3,9 @@ Machine Learning Hedge Fond
 
 Numerai is a new kind of hedge fond, which synthesizes many different and uncorrelated models with many different characteristics, provided by a large group of anonymous people from all over the world. It is free to participate. Data offered weekly is encripted in order to protect the proprietary financial information of the hedge fond. The challenge is posed as a classification problem, where users train their models on the train dataset and upload their predictions for the test dataset. More info can be found at www.numeria.ai
 
-This Jupyter Notebook features a "sandbox" for exploring different classification strategies on the numerai data. It employs scikit-learn Python library and comprises three stages:
+This repository is a fork from https://github.com/sarajcev/numerai. The original code was written as a Jupyter Notebook for the structure of Numer.ai's datasets from 2016. This is an attempt to make an executable version (still WIP) that is able to work with the structure of Numer.ai's datasets of today. 
+
+As sarajcev writes, his code is a "sandbox" for exploring different classification strategies on the numerai data. It employs scikit-learn Python library and comprises three stages:
 
 1. feature extraction and feature engineering; following methods are explored:
     - princilpal component analysis (PCA)
