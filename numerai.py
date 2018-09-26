@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 
 # coding: utf-8
 
@@ -39,6 +41,9 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.linear_model import LogisticRegression
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.pipeline import Pipeline, FeatureUnion
+# t-SNE feature extraction
+from sklearn import manifold
+#import tsne
 
 import keras
 import theano
@@ -48,12 +53,22 @@ from tensorflow.contrib import learn
 from collections import OrderedDict
 import pickle
 import time
+import sys
 
 
-# In[5]:
+who = "bernie"
 
-# t-SNE feature extraction
-import tsne
+target_who = 'target_' + who
+prob_who = 'probability_' + who
+#target_drops = ['id', 'data_type', 'target_elizabeth', 'target_ken', 'target_bernie', 'target_charles',
+#                'target_jordan'];
+#target_drops = ['target_elizabeth', 'target_ken', 'target_bernie', 'target_charles',
+#                'target_jordan'];
+target_drops = ['id', 'era', 'data_type', 'target_elizabeth', 'target_ken', 'target_bernie', 'target_charles',
+                'target_jordan'];
+target_drops.remove(target_who)
+
+
 
 
 # In[6]:
@@ -64,7 +79,9 @@ sns.set_style('darkgrid')
 
 # In[7]:
 
-get_ipython().magic(u'matplotlib inline')
+# ---jirka--- get_ipython().magic(u'matplotlib inline')
+
+
 
 
 # ## Read data files and prepare train & test samples
@@ -72,18 +89,22 @@ get_ipython().magic(u'matplotlib inline')
 # In[8]:
 
 # Data sets
-TRAINING_SET = 'numerai_datasets/numerai_training_data.csv'
-TEST_SET = 'numerai_datasets/numerai_tournament_data.csv'
+TRAINING_SET = '~/Documents/Numerai/Datasets/numerai_dataset_124/numerai_dataset_124/numerai_training_data.csv'
+TEST_SET = '~/Documents/Numerai/Datasets/numerai_dataset_124/numerai_dataset_124/numerai_tournament_data.csv'
 
 # Load datasets.
 training_set = pd.read_csv(TRAINING_SET)
 test_set = pd.read_csv(TEST_SET, index_col=0)
 
+training_set = training_set.drop(target_drops, axis=1)
+test_set = test_set[test_set['data_type'] == 'validation']
+features = [f for f in list(training_set) if "feature" in f]
 
 # In[9]:
 
-training_set.head()
+print (training_set.head())
 
+'''
 
 # In[10]:
 
@@ -94,13 +115,13 @@ pearson.ix[-1][:-1].sort_values()
 fig, ax = plt.subplots(figsize=(12,11))
 sns.heatmap(pearson, annot=True, annot_kws=dict(size=9), vmin=-1, vmax=1, ax=ax)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 
 # In[12]:
 
 plt.hist(training_set['feature1']);
-
+'''
 
 # In[14]:
 
@@ -118,7 +139,8 @@ ax.set_xlim(0,100)
 # In[16]:
 
 plt.figure(figsize=(8,8))
-pd.tools.plotting.radviz(training_set, 'target')
+#pd.tools.plotting.radviz(training_set[features], target_who)
+pd.tools.plotting.radviz(training_set, target_who)
 
 
 # In[ ]:
@@ -135,16 +157,19 @@ test_set = test_set.iloc[::-1];
 # In[18]:
 
 # Training dataset
-X_data = training_set.ix[:,0:21].values
+print ("# Preparing Training dataset...")
+X_data = training_set.ix[:,0:50].values
 print(X_data.shape)
-y_data = training_set['target'].values
+y_data = training_set[target_who].values
 print(y_data.shape)
 
 
 # In[19]:
 
 # Prediction dataset
-X_predict = test_set.values
+print ("# Preparing Prediction dataset...")
+#X_predict = test_set.values
+X_predict = test_set[features].values
 print(X_predict.shape)
 
 
@@ -153,6 +178,7 @@ print(X_predict.shape)
 # In[ ]:
 
 # Split dataset into training and test sets (preserve ordering)
+print ("# Split dataset into training and test sets (preserve ordering)...")
 percent = 0.85
 split = int(percent*X_data.shape[0])
 X_train = X_data[:split,:]
@@ -165,17 +191,19 @@ print(X_test.shape)
 print(y_test.shape)
 
 
-# #### B) Split data using random ordering 
+# #### B) Split data using random ordering
 
 # In[20]:
 
 # Split data into train and test samples (random ordering)
+print ("# Split data into train and test samples (random ordering)...")
 X_train, X_test, y_train, y_test = cross_validation.train_test_split(X_data, y_data, train_size=0.8)
 
 
 # ### Feature engineering
 
 # #### A) Enginner new features using PCA & LDA
+print ("# Engineer new features using PCA & LDA...")
 
 # In[ ]:
 
@@ -184,7 +212,7 @@ pca = PCA(n_components=4)
 lda = LinearDiscriminantAnalysis(n_components=2)
 # Make a union of features
 union = FeatureUnion([('LDA',lda), ('PCA',pca)])
-# Note: This 'union' can be used in Pipeline with any classifier 
+# Note: This 'union' can be used in Pipeline with any classifier
 #       (see below an example with Logistic regression)
 
 
@@ -196,27 +224,34 @@ union_transform = union.fit(X_train, y_train)
 X_train_best = union_transform.transform(X_train)
 X_test_best = union_transform.transform(X_test)
 X_predict_best = union_transform.transform(X_predict)
-X_train_best.shape
+print (X_train_best.shape)
 
 
 # #### B) Engineer new features using t-SNE
+print ("# Engineer new features using t-SNE...")
 
 # In[ ]:
 
 # t-SNE can be used with different 'no_dims' and 'perplexity' values
 # providing different features each time (that can be stacked together)
-X_train_tsne = tsne.tsne(X_train, no_dims=2, perplexity=30)  # perplexity=30 is default
-X_test_tsne = tsne.tsne(X_test, no_dims=2, perplexity=30)
-X_predict_tsne = tsne.tsne(X_predict, no_dims=2, perplexity=30)
+'''
+X_train_tsne = manifold.TSNE(X_train, n_components=2, perplexity=30)  # perplexity=30 is default
+X_test_tsne = manifold.TSNE(X_test, n_components=2, perplexity=30)
+X_predict_tsne = manifold.TSNE(X_predict, n_components=2, perplexity=30)'''
 
+tsne = manifold.TSNE(n_components=2, perplexity=30)
+X_train_tsne = tsne.fit_transform(X_train)
+X_test_tsne = tsne.fit_transform(X_test_tsne)
+X_predict_tsne = tsne.fit_transform(X_predict_tsne)
 
 # In[ ]:
 
 # Stack original features with t-SNE features
+print ("# Stack original features with t-SNE features...")
 X_train = np.c_[X_train, X_train_tsne]
 X_test = np.c_[X_test, X_test_tsne]
 X_predict = np.c_[X_predict, X_predict_tsne]
-X_train.shape
+print (X_train.shape)
 
 
 # #### C) Feature interactions
@@ -224,6 +259,7 @@ X_train.shape
 # In[ ]:
 
 # Feature interactions on ***principal component features***
+print ("# Feature interactions on ***principal component features***...")
 interactions = preprocessing.PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)
 interactions.fit(X_train_best, y_train)
 X_train_interact = interactions.transform(X_train_best)
@@ -234,14 +270,16 @@ X_predict_interact = interactions.transform(X_predict_best)
 # In[ ]:
 
 # Stack engineered features with the original ones
+print ("# Stack engineered features with the original ones...")
 X_train = np.c_[X_train, X_train_interact]
 X_test = np.c_[X_test, X_test_interact]
-X_train.shape
+print (X_train.shape)
 
 
 # In[ ]:
 
 # Feature interactions using several ***best original features***
+print ("# Feature interactions using several ***best original features***...")
 k_best = feature_selection.SelectKBest(feature_selection.chi2, k=4)  # 4 'best' features
 k_best.fit(X_train, y_train)
 X_best_train = k_best.transform(X_train)
@@ -253,12 +291,12 @@ interactions.fit(X_best_train, y_train)
 X_best_train_inter = interactions.transform(X_best_train)[:,4:]
 X_best_test_inter = interactions.transform(X_best_test)[:,4:]
 X_best_pred_inter = interactions.transform(X_best_pred)[:,4:]
-X_best_train_inter.shape
+print (X_best_train_inter.shape)
 
 
 # In[ ]:
 
-# NOTE: Some of the individual classifiers (in the first stage) can be trained 
+# NOTE: Some of the individual classifiers (in the first stage) can be trained
 # on data with extra features and some can be train on the original data set.
 # In order to do this, original data sets should NOT be overwritten with new
 # features and feature interactions. Instead, new names should be used for the
@@ -479,9 +517,9 @@ print('Log-loss: {:.6f}'.format(logloss))
 
 # Logistic regression with selected features (using pipeline)
 pipeline = Pipeline([('features',union), ('logreg',logreg)])
-# Grid search with CV over pipeline 
+# Grid search with CV over pipeline
 params = {'logreg__C':[1., 10., 100.], 'logreg__penalty':['l1', 'l2']}
-grid_pipe = grid_search.GridSearchCV(pipeline, param_grid=params, cv=2, 
+grid_pipe = grid_search.GridSearchCV(pipeline, param_grid=params, cv=2,
                                      scoring='log_loss', n_jobs=-1)
 grid_pipe.fit(X_train, y_train)
 best_params = grid_pipe.best_params_
@@ -568,7 +606,7 @@ print('Log-loss: {:.6f}'.format(logloss))
 # In[ ]:
 
 # Random Forest Classifier
-forest = ensemble.RandomForestClassifier(n_estimators=100, criterion='entropy', 
+forest = ensemble.RandomForestClassifier(n_estimators=100, criterion='entropy',
                                          max_depth=5, oob_score=True, n_jobs=-1)
 # Fit
 forest.fit(X_train, y_train)
@@ -714,7 +752,7 @@ ensemble.partial_dependence.plot_partial_dependence(boost_features, X_train, bes
 
 # AdaBoost Classifier
 # base estimator is a decision tree if not stated otherhwise
-ada_ = ensemble.AdaBoostClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50, 
+ada_ = ensemble.AdaBoostClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
                                    criterion='entropy', max_depth=5))
 # Grid search for optimal parameters
 params = {'learning_rate':[0.001, 0.01, 0.1], 'n_estimators':[50, 100]}
@@ -739,10 +777,10 @@ print('Log-loss: {:.6f}'.format(logloss))
 
 # In[ ]:
 
-# Bagging classifier 
+# Bagging classifier
 # base estimator is a decision tree if not stated otherhwise
-bagg = ensemble.BaggingClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50, 
-                                  criterion='entropy', max_depth=5), n_estimators=100, 
+bagg = ensemble.BaggingClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
+                                  criterion='entropy', max_depth=5), n_estimators=100,
                                   max_samples=0.6, max_features=0.8, oob_score=True, n_jobs=-1)
 # Fit
 bagg.fit(X_train, y_train)
@@ -762,7 +800,7 @@ print('Log-loss: {:.6f}'.format(logloss))
 # In[ ]:
 
 # Stochastic Gradient Descent Classifier
-desc = linear_model.SGDClassifier(loss='log', penalty='l1', learning_rate='constant', 
+desc = linear_model.SGDClassifier(loss='log', penalty='l1', learning_rate='constant',
                                   eta0=0.001, n_jobs=-1)
 # Fit
 desc.fit(X_train, y_train)
@@ -838,7 +876,7 @@ print('Log-loss: {:.6f}'.format(logloss))
 
 # Ensamble classifiers
 use_estimators = [('logreg',logreg), ('bayes',bayes), ('bagg',bagg),
-                  ('forest',forest), ('trees',trees), ('ada',ada), 
+                  ('forest',forest), ('trees',trees), ('ada',ada),
                   ('boost',boost), ('knn',knn_cal), ('desc',desc_cal)]
 
 # Assign weights for the ensamble
@@ -961,7 +999,7 @@ X_train_second, X_validate, y_train_second, y_validate =     cross_validation.tr
 second = LogisticRegression()
 # Grid search for optimal parameters
 params = {'C':[0.1, 1., 10.], 'penalty':['l1', 'l2']}
-grid_second = grid_search.GridSearchCV(estimator=second, param_grid=params, 
+grid_second = grid_search.GridSearchCV(estimator=second, param_grid=params,
                                        cv=3, scoring='log_loss', n_jobs=-1)
 grid_second.fit(X_train_second, y_train_second)
 best_params = grid_second.best_params_
@@ -978,7 +1016,7 @@ print('Log-loss: {:.6f}'.format(logloss))
 # In[ ]:
 
 # Ridge regression with built-in cross validation
-linear = linear_model.RidgeCV(alphas=(0.1, 1.0, 10.0), fit_intercept=False, 
+linear = linear_model.RidgeCV(alphas=(0.1, 1.0, 10.0), fit_intercept=False,
                               cv=3, scoring='log_loss')
 # Fit
 linear.fit(X_train_second, y_train_second)
@@ -1043,9 +1081,9 @@ early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verb
 
 history = LossHistory()
 # Fit model on train data
-model_blend.fit(X_train_second, y_train_second_nn, nb_epoch=100, 
+model_blend.fit(X_train_second, y_train_second_nn, nb_epoch=100,
                 batch_size=BATCH, callbacks=[early_stop, history],
-                validation_data=(X_validate, y_test_second_nn), 
+                validation_data=(X_validate, y_test_second_nn),
                 shuffle=False, verbose=0)
 
 
@@ -1096,7 +1134,7 @@ adam = tf.train.AdamOptimizer(learning_rate=0.001)
 # Build a multi-layerr DNN for classification
 model_dnn = learn.DNNClassifier(feature_columns=features, hidden_units=[1024, 512],
                                 n_classes=2, #model_dir="/tmp/numerai",
-                                optimizer=adam, activation_fn=tf.nn.relu, 
+                                optimizer=adam, activation_fn=tf.nn.relu,
                                 config=learn.estimators.RunConfig(num_cores=8))
 
 
@@ -1201,9 +1239,9 @@ early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verb
 
 history = LossHistory()
 # Fit model on train data
-model_stack.fit([X_test[:N,:], X_train_second], y_train_union_nn, 
-                nb_epoch=100, batch_size=BATCH, callbacks=[early_stop, history], 
-                validation_data=([X_test[N:,:], X_validate], y_test_union_nn), 
+model_stack.fit([X_test[:N,:], X_train_second], y_train_union_nn,
+                nb_epoch=100, batch_size=BATCH, callbacks=[early_stop, history],
+                validation_data=([X_test[N:,:], X_validate], y_test_union_nn),
                 shuffle=False, verbose=0)
 
 
@@ -1227,7 +1265,7 @@ print('\nLog-loss: {:g}, Accuracy: {:.2f} %'.format(score[0], score[1]*100))
 
 # In[ ]:
 
-# Select classifier outputs 
+# Select classifier outputs
 y_new_agg = proba_all[['keras', 'logreg', 'bayes', 'boost', 'forest', 'bagg', 'trees']]
 ws = [2, 2, 1, 1, 2, 1, 1]  # weights
 y_new_avr = np.average(y_new_agg, axis=1, weights=ws)
@@ -1240,11 +1278,11 @@ print('Log-loss: {:.6f}'.format(logloss))
 
 # In[ ]:
 
-# Select classifier outputs 
+# Select classifier outputs
 y_new_agg = proba_all[['keras', 'logreg', 'bayes', 'boost', 'forest', 'bagg', 'trees']].values
 ws = [1, 1, 1, 1, 1, 1, 1]  # weights
 y_new_avr = np.zeros(y_new_agg.shape)
-for in in range(y_new_agg.shape[0]):
+for i in range(y_new_agg.shape[0]):
     y_new_avr[i] = np.exp(np.sum(ws*np.log(y_new_agg[i,:]))/np.sum(ws))
 
 
@@ -1296,7 +1334,7 @@ y9 = knn.predict_proba(X_predict)       # K-Nearest Neighbors
 
 # 2) Assemble predictions from the original classifiers
 # NOTE: It is important to follow the stacking order of the 'proba_all' dataframe!
-proba_all_new = np.c_[y0[:,1], y1[:,1], y2[:,1], y3[:,1], y4[:,1], 
+proba_all_new = np.c_[y0[:,1], y1[:,1], y2[:,1], y3[:,1], y4[:,1],
                       y5[:,1], y6[:,1], y7[:,1], y8[:,1], y9[:,1]]
 
 
@@ -1453,12 +1491,7 @@ y_proba_predicted.shape
 
 # Save predictions to external file
 with open('predictions.csv', 'w') as fout:
-    print('"t_id","probability"', file=fout)
+    print('"id","{}"'.format(prob_who), file=fout)
     for id_val, proba in zip(test_set.index, y_proba_predicted):
         print(id_val, proba, sep=',', file=fout)
-
-
-# In[ ]:
-
-
 
