@@ -8,6 +8,10 @@ dirloc = "server"
 
 plot_predictivity = False
 plot_autocorrelation = False
+plot_losses_nn = False
+
+preditct_proba_nn = False
+
 reverse_dataset = False
 use_tsne = False
 use_interactions = False
@@ -100,7 +104,7 @@ sns.set_style('darkgrid')
 
 
 # ## Read data files and prepare train & test samples
-print ("# Reading in data files and prepare train & test samples...")
+print ("# Reading in data files and preparing train & test samples...")
 # In[8]:
 
 # Data sets
@@ -362,7 +366,10 @@ theano.config.compute_test_value = 'ignore'
 model = keras.models.Sequential()
 
 # Input layer
-model.add(keras.layers.Dense(1024, input_dim=X_train.shape[1]))
+print ("# Input shape X_train.shape[1] is:")
+print (X_train.shape[1])
+#model.add(keras.layers.Dense(1024, input_shape=X_train.shape[1]))
+model.add(keras.layers.Dense(1024, input_shape=(X_train.shape[1],), kernel_initializer='glorot_uniform'))
 model.add(keras.layers.Activation('tanh'))
 model.add(keras.layers.Dropout(0.5))
 # hidden layer
@@ -379,6 +386,7 @@ model.add(keras.layers.Activation('tanh'))
 model.add(keras.layers.Dropout(0.25))
 # Output layer
 model.add(keras.layers.Dense(2, init='glorot_uniform'))
+#model.add(keras.layers.Dense(1, init='glorot_uniform')) #?????????????????????
 model.add(keras.layers.Activation('softmax'))
 
 # Optimizer
@@ -464,62 +472,99 @@ history = LossHistory()
 start_time = time.time()
 
 # Fit model on train data
-model.fit(X_train, y_train_nn, epochs=epochs, batch_size=batch_size, callbacks=[early_stop, history],
-          validation_data=(X_test, y_test_nn), shuffle=False, verbose=0)
+if (preditct_proba_nn == True):
+    model.fit(X_train, y_train_nn, epochs=epochs, batch_size=batch_size, callbacks=[early_stop, history],
+              validation_data=(X_test, y_test_nn), shuffle=False, verbose=0)
 
 # End time
 end_time = time.time()
-print('Execution time: {:g} seconds'.format(end_time - start_time))
+print('Execution time 1: {:g} seconds'.format(end_time - start_time))
 
 
 # In[ ]:
-
-plt.figure(figsize=(7,5))
-plt.plot(history.losses[100::10])  # every 10th point from 100 to the end
-plt.show()
+if (plot_losses_nn == True):
+    plt.figure(figsize=(7,5))
+    plt.plot(history.losses[100::10])  # every 10th point from 100 to the end
+    plt.show()
 
 
 # In[ ]:
 
 # Score metrics (evaluate model on test data)
-score = model.evaluate(X_test, y_test_nn, batch_size=batch_size, verbose=1)
-print('\nLog-loss: {:g}, Accuracy: {:.2f} %'.format(score[0], score[1]*100))
+if (preditct_proba_nn == True):
+    score = model.evaluate(X_test, y_test_nn, batch_size=batch_size, verbose=1)
+    print('\nLog-loss: {:g}, Accuracy: {:.2f} %'.format(score[0], score[1]*100))
 
 
 # In[ ]:
 
 # Predict class probability on test data
-y_pred_proba_nn = model.predict_proba(X_test, batch_size=batch_size)
+if (preditct_proba_nn == True):
+    y_pred_proba_nn = model.predict_proba(X_test, batch_size=batch_size)
 
 
 # ### Logistic Regression
 
 # In[ ]:
 
+# End time
+end_time2 = time.time()
+print('Execution time 2: {:g} seconds'.format(end_time2 - end_time))
+
+
 # Logistic regression
 logreg = LogisticRegression()
 # Grid search for optimal parameters
-print ("# Grid search for optimal parameters")
-params = {'C':[0.01, 0.1, 1], 'penalty':['l1', 'l2']}
-grid = GridSearchCV(estimator=logreg, param_grid=params, cv=3,
-                                scoring='log_loss', n_jobs=-1)
+print ("# Grid search for optimal parameters...")
+
+#params = {'C':[0.01, 0.1, 1], 'penalty':['l1', 'l2']}
+C = [0.01, 0.1, 1]
+penalty = ['l1', 'l2']
+param_grid = dict(C=C, penalty=penalty)
+
+print ("# Show shape of X_train, y_train and X_test:")
+print (X_train.shape)
+print (y_train.shape)
+print (X_test.shape)
+
+print ("# Reshape X_train:")
+X_train = X_train[:, 0]
+X_test = X_test[:, 0]
+
+#grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
+#                                scoring='log_loss', n_jobs=-1)
+# --- jirka --- maybe need to use K-fold split here
+#grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
+#                                scoring='log_loss', n_jobs=-1)
+grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
+                                scoring='log_loss', n_jobs=1, verbose=3)
 grid.fit(X_train, y_train)
 best_params = grid.best_params_
+print ("# Grid search - best params:")
 print(best_params)
+
+# End time
+end_time3 = time.time()
+print('Execution time 3: {:g} seconds'.format(end_time3 - end_time2))
 
 
 # In[23]:
 
 # Predict probability on test data
+print ("# Predict probability on test data...")
 y_pred_proba_logreg = grid.predict_proba(X_test)
 # Accuracy metrics (log-loss)
 logloss = metrics.log_loss(y_test, y_pred_proba_logreg)
 print('Log-loss: {:.6f}'.format(logloss))
 
+# End time
+end_time4 = time.time()
+print('Execution time 4: {:g} seconds'.format(end_time4 - end_time3))
 
 # In[ ]:
 
 # Calibrated Logistic regression classifier
+print ("# Calibrated Logistic regression classifier...")
 grid_cal = CalibratedClassifierCV(grid, cv=2, method='isotonic')
 # Fit
 grid_cal.fit(X_train, y_train)
@@ -528,11 +573,15 @@ grid_cal.fit(X_train, y_train)
 # In[ ]:
 
 # Predict probability on test data
+print ("# Predict probability on test data after calibration...")
 y_pred_proba_logreg = grid_cal.predict_proba(X_test)
 # Accuracy metrics (log-loss)
 logloss = metrics.log_loss(y_test, y_pred_proba_logreg)
 print('Log-loss: {:.6f}'.format(logloss))
 
+# End time
+end_time5 = time.time()
+print('Execution time 5: {:g} seconds'.format(end_time5 - end_time4))
 
 # #### Logistic regression with selected features
 
@@ -543,9 +592,10 @@ pipeline = Pipeline([('features',union), ('logreg',logreg)])
 # Grid search with CV over pipeline
 params = {'logreg__C':[1., 10., 100.], 'logreg__penalty':['l1', 'l2']}
 grid_pipe = GridSearchCV(pipeline, param_grid=params, cv=2,
-                                     scoring='log_loss', n_jobs=-1)
+                                     scoring='log_loss', n_jobs=-1, verbose=3)
 grid_pipe.fit(X_train, y_train)
 best_params = grid_pipe.best_params_
+print ("# Grid search - best params:")
 print(best_params)
 
 
@@ -563,19 +613,27 @@ print('Log-loss: {:.6f}'.format(logloss))
 # In[ ]:
 
 # Support Vector Classification
-svc = svm.NuSVC(nu=0.5, kernel='linear', probability=False)  # Slow with: probability=True
+print("# Support Vector Classification...")
+svc = svm.NuSVC(nu=0.5, kernel='linear', probability=False, verbose=3)  # Slow with: probability=True
 # Fit
 svc.fit(X_train, y_train)
 
+# End time
+end_time6 = time.time()
+print('Execution time 6: {:g} seconds'.format(end_time6 - end_time5))
 
 # In[ ]:
 
 # Predict probability on test data
+print("# Predict probability on test data...")
 y_pred_proba_svc = svc.predict_proba(X_test)
 # Accuracy metrics (log-loss)
 logloss = metrics.log_loss(y_test, y_pred_proba_svc)
 print('Log-loss: {:.6f}'.format(logloss))
 
+# End time
+end_time7 = time.time()
+print('Execution time 7: {:g} seconds'.format(end_time7 - end_time6))
 
 # ### Gaussian Naive Bayes
 
@@ -778,8 +836,11 @@ ensemble.partial_dependence.plot_partial_dependence(boost_features, X_train, bes
 ada_ = ensemble.AdaBoostClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
                                    criterion='entropy', max_depth=5))
 # Grid search for optimal parameters
-params = {'learning_rate':[0.001, 0.01, 0.1], 'n_estimators':[50, 100]}
-ada = GridSearchCV(estimator=ada_, param_grid=params, cv=2,
+#params = {'learning_rate':[0.001, 0.01, 0.1], 'n_estimators':[50, 100]}
+learning_rate = [0.001, 0.01, 0.1]
+n_estimators = [50, 100]
+param_grid = dict(learning_rate=learning_rate, n_estimators=n_estimators)
+ada = GridSearchCV(estimator=ada_, param_grid=param_grid, cv=2,
                                scoring='log_loss', n_jobs=-1)
 # Fit using train data
 ada.fit(X_train, y_train)
@@ -1074,7 +1135,7 @@ print('Log-loss: {:.6f}'.format(logloss))
 model_blend = keras.models.Sequential()
 
 # Input layer
-model_blend.add(keras.layers.Dense(1024, input_dim=proba_all.shape[1], init='glorot_uniform'))
+model_blend.add(keras.layers.Dense(1024, input_shape=proba_all.shape[1], init='glorot_uniform'))
 model_blend.add(keras.layers.Activation('tanh'))
 model_blend.add(keras.layers.Dropout(0.5))
 # hidden layer
@@ -1204,7 +1265,7 @@ print('Log-loss: {0:f}'.format(log_loss_score))
 # Left branch (original features)
 model1 = keras.models.Sequential()
 # Input layer (features)
-model1.add(keras.layers.Dense(1024, input_dim=X_train.shape[1], init='glorot_uniform'))
+model1.add(keras.layers.Dense(1024, input_shape=X_train.shape[1], init='glorot_uniform'))
 model1.add(keras.layers.Activation('tanh'))
 model1.add(keras.layers.Dropout(0.5))
 # 1st layer
@@ -1219,7 +1280,7 @@ model1.add(keras.layers.Dropout(0.5))
 # Right branch (first-stage predictions)
 model2 = keras.models.Sequential()
 # Input layer (10 first-level prediction probabilities)
-model2.add(keras.layers.Dense(256, input_dim=proba_all.shape[1], init='glorot_uniform'))
+model2.add(keras.layers.Dense(256, input_shape=proba_all.shape[1], init='glorot_uniform'))
 model2.add(keras.layers.Activation('tanh'))
 model2.add(keras.layers.Dropout(0.5))
 # 1st layer
