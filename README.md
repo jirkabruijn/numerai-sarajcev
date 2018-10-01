@@ -1,4 +1,15 @@
-# Numerai
+# Numer.ai
+
+## Work in progress:
+Working on:
+- Rewriting code to Python 3.6
+- Updating libraries
+- Getting rid of depricated calls
+- Changing the code to use todays Numer.ai datasets
+- Making the code executable (instead of jupyter notebook calls)
+- Adding parameters for executing parts of the code
+
+## The project:
 Machine Learning Hedge Fond
 
 Numerai is a new kind of hedge fond, which synthesizes many different and uncorrelated models with many different characteristics, provided by a large group of anonymous people from all over the world. It is free to participate. Data offered weekly is encripted in order to protect the proprietary financial information of the hedge fond. The challenge is posed as a classification problem, where users train their models on the train dataset and upload their predictions for the test dataset. More info can be found at www.numeria.ai

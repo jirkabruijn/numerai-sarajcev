@@ -10,7 +10,17 @@ plot_predictivity = False
 plot_autocorrelation = False
 plot_losses_nn = False
 
-preditct_proba_nn = False
+predict_proba_nn = False
+predict_proba_logreg = False
+predict_proba_svc = False
+predict_proba_bayes = True
+predict_proba_forest = True
+predict_proba_trees = True
+predict_proba_bagg = True
+predict_proba_boost = True
+predict_proba_ada = True
+predict_proba_desc = True
+predict_proba_knn = True
 
 reverse_dataset = False
 use_tsne = False
@@ -24,12 +34,9 @@ batch_size2 = 1024
 epochs = 20
 epochs_blend = 20
 
-# In[1]:
 '''
 from __future__ import print_function
 
-
-# In[2]:
 
 import warnings
 
@@ -88,24 +95,41 @@ target_drops = ['id', 'era', 'data_type', 'target_elizabeth', 'target_ken', 'tar
 target_drops.remove(target_who)
 
 
+class Timer:
+  def __init__(self):
+    self.start = time.time()
+    self.iter = 1
 
+  def restart(self):
+    self.start = time.time()
 
-# In[6]:
+  def benchmark(self):
+    end = time.time()
+    ex_time = end - self.start
+    print("---")
+    print('Execution time {}: {:g} seconds'.format(self.iter, ex_time))
+    print("---")
+    self.iter = self.iter + 1
+    self.restart()
+
+def header(htext):
+
+    print("# -------------------------------------------------")
+    print(htext)
+    print("# -------------------------------------------------")
+
 
 sns.set_context('notebook', font_scale=1.25)
 sns.set_style('darkgrid')
 
 
-# In[7]:
-
-# ---jirka--- get_ipython().magic(u'matplotlib inline')
-
-
+# Start timer
+my_timer = Timer()
 
 
 # ## Read data files and prepare train & test samples
-print ("# Reading in data files and preparing train & test samples...")
-# In[8]:
+header("# Reading in data files and preparing train & test samples...")
+
 
 # Data sets
 if (dirloc == 'local'):
@@ -124,14 +148,13 @@ training_set = training_set.drop(target_drops, axis=1)
 test_set = test_set[test_set['data_type'] == 'validation']
 features = [f for f in list(training_set) if "feature" in f]
 
-# In[9]:
 
 print ("# Lets have a look at the training set...")
 print (training_set.head())
 
+#Execution time...
+my_timer.benchmark()
 
-
-# In[10]:
 
 if (plot_predictivity == True):
 
@@ -148,20 +171,14 @@ if (plot_predictivity == True):
     plt.hist(training_set['feature1']);
 
 
-# In[14]:
 if (plot_autocorrelation == True):
+
     # Autocorrelation
     pd.tools.plotting.lag_plot(training_set['feature1']);
-
-
-    # In[15]:
 
     ax = pd.tools.plotting.autocorrelation_plot(training_set['feature1'])
     ax.set_ylim(-0.02, 0.02)
     ax.set_xlim(0,100)
-
-
-    # In[16]:
 
     plt.figure(figsize=(8,8))
     #pd.tools.plotting.radviz(training_set[features], target_who)
@@ -169,6 +186,7 @@ if (plot_autocorrelation == True):
 
 
 if (reverse_dataset == True):
+
     # Reverse dataset order (by index) to use latest data points
     print ("# Reverse dataset order (by index) to use latest data points...")
     # Training dataset
@@ -179,7 +197,6 @@ if (reverse_dataset == True):
 
 # ## Train test dataset split
 
-# In[18]:
 
 # Training dataset
 print ("# Preparing Training dataset...")
@@ -188,8 +205,6 @@ print(X_data.shape)
 y_data = training_set[target_who].values
 print(y_data.shape)
 
-
-# In[19]:
 
 # Prediction dataset
 print ("# Preparing Prediction dataset...")
@@ -200,10 +215,9 @@ print(X_predict.shape)
 
 # #### A) Split data while preserve ordering (time-series data?)
 
-# In[ ]:
 
 # Split dataset into training and test sets (preserve ordering)
-print ("# Split dataset into training and test sets (preserve ordering)...")
+header("# Split dataset into training and test sets (preserve ordering)...")
 percent = 0.85
 split = int(percent*X_data.shape[0])
 X_train = X_data[:split,:]
@@ -252,6 +266,9 @@ X_test_best = union_transform.transform(X_test)
 X_predict_best = union_transform.transform(X_predict)
 print (X_train_best.shape)
 
+#Execution time...
+my_timer.benchmark()
+
 if (use_tsne == True):
 
     # #### B) Engineer new features using t-SNE
@@ -275,6 +292,8 @@ if (use_tsne == True):
     X_predict = np.c_[X_predict, X_predict_tsne]
     print (X_train.shape)
 
+    # Execution time...
+    my_timer.benchmark()
 
 # #### C) Feature interactions
 if (use_interactions == True):
@@ -347,609 +366,609 @@ if (use_interactions == True):
     X_predict = np.c_[X_predict, X_predict_best, X_best_pred_inter]
     X_train.shape
 
+    # Execution time...
+    my_timer.benchmark()
 
 # ## Train individual classifiers
 
+
+
+
 # ### Keras Neural Network for Classification
+if (predict_proba_nn == True):
+    # In[ ]:
 
-# In[ ]:
+    # -- jirka --- TODO: need to make two executions
 
-# NOTE: Needed only with the theano backend!
-theano.config.compute_test_value = 'ignore'
-
-
-# #### A) Feed-forward network
-
-# In[ ]:
-
-# Feed-forward neural network for classification
-model = keras.models.Sequential()
-
-# Input layer
-print ("# Input shape X_train.shape[1] is:")
-print (X_train.shape[1])
-#model.add(keras.layers.Dense(1024, input_shape=X_train.shape[1]))
-model.add(keras.layers.Dense(1024, input_shape=(X_train.shape[1],), kernel_initializer='glorot_uniform'))
-model.add(keras.layers.Activation('tanh'))
-model.add(keras.layers.Dropout(0.5))
-# hidden layer
-model.add(keras.layers.Dense(512, init='glorot_uniform'))
-model.add(keras.layers.Activation('tanh'))
-model.add(keras.layers.Dropout(0.5))
-# hidden layer
-model.add(keras.layers.Dense(256, init='glorot_uniform'))
-model.add(keras.layers.Activation('tanh'))
-model.add(keras.layers.Dropout(0.25))
-# hidden layer (delete)
-model.add(keras.layers.Dense(128, init='glorot_uniform'))
-model.add(keras.layers.Activation('tanh'))
-model.add(keras.layers.Dropout(0.25))
-# Output layer
-model.add(keras.layers.Dense(2, init='glorot_uniform'))
-#model.add(keras.layers.Dense(1, init='glorot_uniform')) #?????????????????????
-model.add(keras.layers.Activation('softmax'))
-
-# Optimizer
-sgd = keras.optimizers.SGD(lr=0.01, momentum=0.9, decay=1e-2, nesterov=True)
-
-# Compile network
-model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
+    # NOTE: Needed only with the theano backend!
+    theano.config.compute_test_value = 'ignore'
 
 
-# #### B) Recurrent neural network
+    # #### A) Feed-forward network
 
-# In[ ]:
+    # In[ ]:
 
-# Recurrent neural network for classification
-model = keras.models.Sequential()
+    # Feed-forward neural network for classification
+    model = keras.models.Sequential()
 
-# Input layer
-layer = 'lstm'
-if layer == 'rnn':
-    # Recurrent layer
-    model.add(keras.layers.recurrent.SimpleRNN(1024, input_dim=X_train.shape[1], activation='tanh'))
-elif layer == 'lstm':
-    # Long-Short Term Memory layer
-    model.add(keras.layers.recurrent.LSTM(1024, input_dim=X_train.shape[1], activation='tanh'))
-
-hidden = False
-if hidden:
-    # add another dense hidden layer
-    model.add(keras.layers.Dense(512, activation='tanh'))
+    # Input layer
+    print ("# Input shape X_train.shape[1] is:")
+    print (X_train.shape[1])
+    #model.add(keras.layers.Dense(1024, input_shape=X_train.shape[1]))
+    model.add(keras.layers.Dense(1024, input_shape=(X_train.shape[1],), kernel_initializer='glorot_uniform'))
+    model.add(keras.layers.Activation('tanh'))
     model.add(keras.layers.Dropout(0.5))
+    # hidden layer
+    model.add(keras.layers.Dense(512, init='glorot_uniform'))
+    model.add(keras.layers.Activation('tanh'))
+    model.add(keras.layers.Dropout(0.5))
+    # hidden layer
+    model.add(keras.layers.Dense(256, init='glorot_uniform'))
+    model.add(keras.layers.Activation('tanh'))
+    model.add(keras.layers.Dropout(0.25))
+    # hidden layer (delete)
+    model.add(keras.layers.Dense(128, init='glorot_uniform'))
+    model.add(keras.layers.Activation('tanh'))
+    model.add(keras.layers.Dropout(0.25))
+    # Output layer
+    model.add(keras.layers.Dense(2, init='glorot_uniform'))
+    #model.add(keras.layers.Dense(1, init='glorot_uniform')) #?????????????????????
+    model.add(keras.layers.Activation('softmax'))
 
-# Output layer
-model.add(keras.layers.Dense(2))
-model.add(keras.layers.Activation('softmax'))
+    # Optimizer
+    sgd = keras.optimizers.SGD(lr=0.01, momentum=0.9, decay=1e-2, nesterov=True)
 
-# Optimizer
-sgd = keras.optimizers.SGD(lr=0.01, momentum=0.9, decay=1e-2, nesterov=True)
-
-# Compile network
-model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
-
-
-# In[ ]:
-
-# Reshape datasets for the recurrent network (see Keras documentation)
-X_train = np.reshape(X_train, (X_train.shape[0], 1, X_train.shape[1]))
-X_test = np.reshape(X_test, (X_test.shape[0], 1, X_test.shape[1]))
-
-
-# #### Train the network and evaluate the score on test data (same code for both networks)
-
-# In[ ]:
-
-
+    # Compile network
+    model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
 
-# In[ ]:
+    # #### B) Recurrent neural network
 
-# Encode 'targets' to categorical variables (2 categories: 0, 1)
-y_train_nn = keras.utils.np_utils.to_categorical(y_train)
-y_test_nn = keras.utils.np_utils.to_categorical(y_test)
+    # In[ ]:
+
+    # Recurrent neural network for classification
+    model = keras.models.Sequential()
+
+    # Input layer
+    layer = 'lstm'
+    if layer == 'rnn':
+        # Recurrent layer
+        model.add(keras.layers.recurrent.SimpleRNN(1024, input_dim=X_train.shape[1], activation='tanh'))
+    elif layer == 'lstm':
+        # Long-Short Term Memory layer
+        model.add(keras.layers.recurrent.LSTM(1024, input_dim=X_train.shape[1], activation='tanh'))
+
+    hidden = False
+    if hidden:
+        # add another dense hidden layer
+        model.add(keras.layers.Dense(512, activation='tanh'))
+        model.add(keras.layers.Dropout(0.5))
+
+    # Output layer
+    model.add(keras.layers.Dense(2))
+    model.add(keras.layers.Activation('softmax'))
+
+    # Optimizer
+    sgd = keras.optimizers.SGD(lr=0.01, momentum=0.9, decay=1e-2, nesterov=True)
+
+    # Compile network
+    model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
 
-# In[ ]:
+    # In[ ]:
 
-class LossHistory(keras.callbacks.Callback):
-    # For recording the training history (loss)
-    def on_train_begin(self, logs={}):
-        self.losses = []
-    def on_batch_end(self, batch, logs={}):
-        self.losses.append(logs.get('loss'))
+    # Reshape datasets for the recurrent network (see Keras documentation)
+    X_train = np.reshape(X_train, (X_train.shape[0], 1, X_train.shape[1]))
+    X_test = np.reshape(X_test, (X_test.shape[0], 1, X_test.shape[1]))
 
 
-# In[ ]:
+    # #### Train the network and evaluate the score on test data (same code for both networks)
 
-# Early stopping of training process (if no improvement)
-early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, mode='auto')
 
-# Record training history
-history = LossHistory()
+    # Encode 'targets' to categorical variables (2 categories: 0, 1)
+    y_train_nn = keras.utils.np_utils.to_categorical(y_train)
+    y_test_nn = keras.utils.np_utils.to_categorical(y_test)
 
-# Start time
-start_time = time.time()
 
-# Fit model on train data
-if (preditct_proba_nn == True):
+    # In[ ]:
+
+    class LossHistory(keras.callbacks.Callback):
+        # For recording the training history (loss)
+        def on_train_begin(self, logs={}):
+            self.losses = []
+        def on_batch_end(self, batch, logs={}):
+            self.losses.append(logs.get('loss'))
+
+
+    # In[ ]:
+
+    # Early stopping of training process (if no improvement)
+    early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, mode='auto')
+
+    # Record training history
+    history = LossHistory()
+
+
+    # Fit model on train data
     model.fit(X_train, y_train_nn, epochs=epochs, batch_size=batch_size, callbacks=[early_stop, history],
               validation_data=(X_test, y_test_nn), shuffle=False, verbose=0)
 
-# End time
-end_time = time.time()
-print('Execution time 1: {:g} seconds'.format(end_time - start_time))
+
+    # In[ ]:
+    if (plot_losses_nn == True):
+        plt.figure(figsize=(7,5))
+        plt.plot(history.losses[100::10])  # every 10th point from 100 to the end
+        plt.show()
 
 
-# In[ ]:
-if (plot_losses_nn == True):
-    plt.figure(figsize=(7,5))
-    plt.plot(history.losses[100::10])  # every 10th point from 100 to the end
-    plt.show()
+    # In[ ]:
 
-
-# In[ ]:
-
-# Score metrics (evaluate model on test data)
-if (preditct_proba_nn == True):
+    # Score metrics (evaluate model on test data)
     score = model.evaluate(X_test, y_test_nn, batch_size=batch_size, verbose=1)
     print('\nLog-loss: {:g}, Accuracy: {:.2f} %'.format(score[0], score[1]*100))
 
 
-# In[ ]:
+    # In[ ]:
 
-# Predict class probability on test data
-if (preditct_proba_nn == True):
+    # Predict class probability on test data
     y_pred_proba_nn = model.predict_proba(X_test, batch_size=batch_size)
+
+    # Execution time...
+    my_timer.benchmark()
+
+    print("# Show shape of X_train, y_train and X_test:")
+    print(X_train.shape)
+    print(y_train.shape)
+    print(X_test.shape)
+
+    print("# Reshape X_train:")
+    X_train = X_train[:, 0]
+    X_test = X_test[:, 0]
+
+
+
+
+
 
 
 # ### Logistic Regression
+if (predict_proba_logreg == True):
+    # In[ ]:
 
-# In[ ]:
-
-# End time
-end_time2 = time.time()
-print('Execution time 2: {:g} seconds'.format(end_time2 - end_time))
-
-
-# Logistic regression
-logreg = LogisticRegression()
-# Grid search for optimal parameters
-print ("# Grid search for optimal parameters...")
-
-#params = {'C':[0.01, 0.1, 1], 'penalty':['l1', 'l2']}
-C = [0.01, 0.1, 1]
-penalty = ['l1', 'l2']
-param_grid = dict(C=C, penalty=penalty)
-
-print ("# Show shape of X_train, y_train and X_test:")
-print (X_train.shape)
-print (y_train.shape)
-print (X_test.shape)
-
-print ("# Reshape X_train:")
-X_train = X_train[:, 0]
-X_test = X_test[:, 0]
-
-#grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
-#                                scoring='log_loss', n_jobs=-1)
-# --- jirka --- maybe need to use K-fold split here
-#grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
-#                                scoring='log_loss', n_jobs=-1)
-grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
-                                scoring='log_loss', n_jobs=1, verbose=3)
-grid.fit(X_train, y_train)
-best_params = grid.best_params_
-print ("# Grid search - best params:")
-print(best_params)
-
-# End time
-end_time3 = time.time()
-print('Execution time 3: {:g} seconds'.format(end_time3 - end_time2))
+    # End time
+    end_time2 = time.time()
+    print('Execution time 2: {:g} seconds'.format(end_time2 - end_time))
 
 
-# In[23]:
+    # Logistic regression
+    logreg = LogisticRegression()
+    # Grid search for optimal parameters
+    print ("# Grid search for optimal parameters...")
 
-# Predict probability on test data
-print ("# Predict probability on test data...")
-y_pred_proba_logreg = grid.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_logreg)
-print('Log-loss: {:.6f}'.format(logloss))
+    #params = {'C':[0.01, 0.1, 1], 'penalty':['l1', 'l2']}
+    C = [0.01, 0.1, 1]
+    penalty = ['l1', 'l2']
+    param_grid = dict(C=C, penalty=penalty)
 
-# End time
-end_time4 = time.time()
-print('Execution time 4: {:g} seconds'.format(end_time4 - end_time3))
+    #grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
+    #                                scoring='neg_log_loss', n_jobs=-1)
+    # --- jirka --- maybe need to use K-fold split here
+    #grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
+    #                                scoring='neg_log_loss', n_jobs=-1)
+    grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
+                                    scoring='neg_log_loss', n_jobs=1, verbose=3)
+    grid.fit(X_train, y_train)
+    best_params = grid.best_params_
+    print ("# Grid search - best params:")
+    print(best_params)
 
-# In[ ]:
-
-# Calibrated Logistic regression classifier
-print ("# Calibrated Logistic regression classifier...")
-grid_cal = CalibratedClassifierCV(grid, cv=2, method='isotonic')
-# Fit
-grid_cal.fit(X_train, y_train)
-
-
-# In[ ]:
-
-# Predict probability on test data
-print ("# Predict probability on test data after calibration...")
-y_pred_proba_logreg = grid_cal.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_logreg)
-print('Log-loss: {:.6f}'.format(logloss))
-
-# End time
-end_time5 = time.time()
-print('Execution time 5: {:g} seconds'.format(end_time5 - end_time4))
-
-# #### Logistic regression with selected features
-
-# In[ ]:
-
-# Logistic regression with selected features (using pipeline)
-pipeline = Pipeline([('features',union), ('logreg',logreg)])
-# Grid search with CV over pipeline
-params = {'logreg__C':[1., 10., 100.], 'logreg__penalty':['l1', 'l2']}
-grid_pipe = GridSearchCV(pipeline, param_grid=params, cv=2,
-                                     scoring='log_loss', n_jobs=-1, verbose=3)
-grid_pipe.fit(X_train, y_train)
-best_params = grid_pipe.best_params_
-print ("# Grid search - best params:")
-print(best_params)
+    # Execution time...
+    my_timer.benchmark()
 
 
-# In[ ]:
+    # In[23]:
 
-# Predict probability on test data
-y_pred_proba_logreg = grid_pipe.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_logreg)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Predict probability on test data
+    print ("# Predict probability on test data...")
+    y_pred_proba_logreg = grid.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_logreg)
+    print('Log-loss: {:.6f}'.format(logloss))
+
+    # Execution time...
+    my_timer.benchmark()
+
+    # In[ ]:
+
+    # Calibrated Logistic regression classifier
+    print ("# Calibrated Logistic regression classifier...")
+    grid_cal = CalibratedClassifierCV(grid, cv=2, method='isotonic')
+    # Fit
+    grid_cal.fit(X_train, y_train)
+
+
+    # In[ ]:
+
+    # Predict probability on test data
+    print ("# Predict probability on test data after calibration...")
+    y_pred_proba_logreg = grid_cal.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_logreg)
+    print('Log-loss: {:.6f}'.format(logloss))
+
+    # Execution time...
+    my_timer.benchmark()
+
+    # #### Logistic regression with selected features
+
+    # In[ ]:
+
+    # Logistic regression with selected features (using pipeline)
+    pipeline = Pipeline([('features',union), ('logreg',logreg)])
+    # Grid search with CV over pipeline
+    params = {'logreg__C':[1., 10., 100.], 'logreg__penalty':['l1', 'l2']}
+    grid_pipe = GridSearchCV(pipeline, param_grid=params, cv=2,
+                                         scoring='neg_log_loss', n_jobs=-1, verbose=3)
+    grid_pipe.fit(X_train, y_train)
+    best_params = grid_pipe.best_params_
+    print ("# Grid search - best params:")
+    print(best_params)
+
+
+    # In[ ]:
+
+    # Predict probability on test data
+    y_pred_proba_logreg = grid_pipe.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_logreg)
+    print('Log-loss: {:.6f}'.format(logloss))
+
+    # Execution time...
+    my_timer.benchmark()
 
 
 # ### Support Vector Machine
+if (predict_proba_svc == True):
 
-# In[ ]:
+    # Support Vector Classification
+    print("# Support Vector Classification...")
+    svc = svm.NuSVC(nu=0.5, kernel='linear', probability=False, shrinking=False, verbose=3)  # Slow with: probability=True
+    # Fit
+    svc.fit(X_train, y_train)
 
-# Support Vector Classification
-print("# Support Vector Classification...")
-svc = svm.NuSVC(nu=0.5, kernel='linear', probability=False, verbose=3)  # Slow with: probability=True
-# Fit
-svc.fit(X_train, y_train)
+    # Execution time...
+    my_timer.benchmark()
 
-# End time
-end_time6 = time.time()
-print('Execution time 6: {:g} seconds'.format(end_time6 - end_time5))
+    # Predict probability on test data
+    print("# Predict probability on test data...")
+    y_pred_proba_svc = svc.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_svc)
+    print('Log-loss: {:.6f}'.format(logloss))
 
-# In[ ]:
-
-# Predict probability on test data
-print("# Predict probability on test data...")
-y_pred_proba_svc = svc.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_svc)
-print('Log-loss: {:.6f}'.format(logloss))
-
-# End time
-end_time7 = time.time()
-print('Execution time 7: {:g} seconds'.format(end_time7 - end_time6))
+    # Execution time...
+    my_timer.benchmark()
 
 # ### Gaussian Naive Bayes
+if (predict_proba_bayes == True):
 
-# In[ ]:
+    # Gaussian Naive Bayes
+    print("# Gaussian Naive Bayes...")
+    bayes = GaussianNB()
 
-# Gaussian Naive Bayes
-bayes = GaussianNB()
-# Fit
-bayes.fit(X_train, y_train)
+    # Fit
+    bayes.fit(X_train, y_train)
 
+    # Execution time...
+    my_timer.benchmark()
 
-# In[ ]:
-
-# Predict probability on test data
-y_pred_proba_bayes = bayes.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_bayes)
-print('Log-loss: {:.6f}'.format(logloss))
-
-
-# In[ ]:
-
-# Naive Bayes with Calibration
-calibrate = CalibratedClassifierCV(bayes, cv=5, method='isotonic')
-# Fit
-calibrate.fit(X_train, y_train)
-# Predict probability on test data
-y_pred_proba_bayes = calibrate.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_bayes)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Predict probability on test data
+    y_pred_proba_bayes = bayes.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_bayes)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
-# #### Naive Bayes with Selected Features
+    # In[ ]:
 
-# In[ ]:
+    # Naive Bayes with Calibration
+    calibrate = CalibratedClassifierCV(bayes, cv=5, method='isotonic')
+    # Fit
+    calibrate.fit(X_train, y_train)
+    # Predict probability on test data
+    y_pred_proba_bayes = calibrate.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_bayes)
+    print('Log-loss: {:.6f}'.format(logloss))
 
-# Naive Bayes with Selected Features (using pipeline)
-bayes = GaussianNB()
-pipe = Pipeline([('features',union), ('bayes',bayes)])
-pipe.fit(X_train, y_train)
-# Predict probability on test data
-y_pred_proba_bayes = pipe.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_bayes)
-print('Log-loss: {:.6f}'.format(logloss))
+
+    # #### Naive Bayes with Selected Features
+
+    # In[ ]:
+
+    # Naive Bayes with Selected Features (using pipeline)
+    bayes = GaussianNB()
+    pipe = Pipeline([('features',union), ('bayes',bayes)])
+    pipe.fit(X_train, y_train)
+    # Predict probability on test data
+    y_pred_proba_bayes = pipe.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_bayes)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
 # ### Random Forest Classifier
+if (predict_proba_forest == True):
+    # In[ ]:
 
-# In[ ]:
-
-# Random Forest Classifier
-forest = ensemble.RandomForestClassifier(n_estimators=100, criterion='entropy',
-                                         max_depth=5, oob_score=True, n_jobs=-1)
-# Fit
-forest.fit(X_train, y_train)
+    # Random Forest Classifier
+    forest = ensemble.RandomForestClassifier(n_estimators=100, criterion='entropy',
+                                             max_depth=5, oob_score=True, n_jobs=-1)
+    # Fit
+    forest.fit(X_train, y_train)
 
 
-# In[ ]:
+    # In[ ]:
 
-# Predict probability on test data
-y_pred_proba_forest = forest.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_forest)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Predict probability on test data
+    y_pred_proba_forest = forest.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_forest)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
 # ### Extra Trees Classifier
+if (predict_proba_trees == True):
+    # In[ ]:
 
-# In[ ]:
-
-# Extra Trees Classifier
-trees = ensemble.ExtraTreesClassifier(n_estimators=100, criterion='entropy', max_depth=5, n_jobs=-1)
-# Fit
-trees.fit(X_train, y_train)
-
-
-# In[ ]:
-
-# Predict probability on test data
-y_pred_proba_trees = trees.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_trees)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Extra Trees Classifier
+    trees = ensemble.ExtraTreesClassifier(n_estimators=100, criterion='entropy', max_depth=5, n_jobs=-1)
+    # Fit
+    trees.fit(X_train, y_train)
 
 
-# #### Extra Trees Classifier with Grid search and Cross-validation
+    # In[ ]:
 
-# In[ ]:
-
-# Extra Trees Classifier with Grid search and Cross-validation
-trees = ensemble.ExtraTreesClassifier()
-# Grid search for optimal parameters
-params = {'n_estimators':[50, 100], 'criterion':['gini', 'entropy'], 'max_depth':[5, 10]}
-stacker = GridSearchCV(estimator=trees, param_grid=params, cv=2,
-                                   scoring='log_loss', n_jobs=-1)
-stacker.fit(X_train, y_train)
-best_params = stacker.best_params_
-print(best_params)
+    # Predict probability on test data
+    y_pred_proba_trees = trees.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_trees)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
-# In[ ]:
+    # #### Extra Trees Classifier with Grid search and Cross-validation
 
-# Predict probability on test data
-y_pred_proba_trees = stacker.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_trees)
-print('Log-loss: {:.6f}'.format(logloss))
+    # In[ ]:
 
-
-# #### Feature importance
-
-# In[ ]:
-
-# Feature importance
-feature_importance = trees.feature_importances_
-print('Feature importance:')
-for feature, name in zip(feature_importance, training_set.columns):
-    print('{:8s} => {:g}'.format(name, feature))
+    # Extra Trees Classifier with Grid search and Cross-validation
+    trees = ensemble.ExtraTreesClassifier()
+    # Grid search for optimal parameters
+    params = {'n_estimators':[10, 50, 100, 200], 'criterion':['gini', 'entropy'], 'max_depth':[5, 10, 15]}
+    stacker = GridSearchCV(estimator=trees, param_grid=params, cv=2,
+                                       scoring='neg_log_loss', n_jobs=-1)
+    stacker.fit(X_train, y_train)
+    best_params = stacker.best_params_
+    print(best_params)
 
 
-# In[ ]:
+    # In[ ]:
 
-# Select the most important features
-features_model = feature_selection.SelectFromModel(trees, prefit=True)
-X_train_top = features_model.transform(X_train)
-X_train_top.shape
+    # Predict probability on test data
+    y_pred_proba_trees = stacker.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_trees)
+    print('Log-loss: {:.6f}'.format(logloss))
+
+
+    # #### Feature importance
+
+    # In[ ]:
+
+    # Feature importance
+    print("# Feature importance...")
+    trees = ensemble.ExtraTreesClassifier().set_params(**best_params)
+    trees.fit(X_train, y_train)
+    feature_importance = trees.feature_importances_
+    print('Feature importance:')
+    for feature, name in zip(feature_importance, training_set.columns):
+        print('{:8s} => {:g}'.format(name, feature))
+
+
+    # In[ ]:
+
+    # Select the most important features
+    print("# Select the most important features...")
+    features_model = feature_selection.SelectFromModel(trees, prefit=True)
+    X_train_top = features_model.transform(X_train)
+    X_train_top.shape
 
 
 # ### Gradient Boost Classifier
+if (predict_proba_boost == True):
+    # In[ ]:
 
-# In[ ]:
-
-# Gradient Boost Classifier
-boost_ = ensemble.GradientBoostingClassifier()
-# Grid search for optimal parameters
-params = {'max_depth':[5, 10], 'learning_rate':[0.001, 0.01], 'n_estimators':[100, 500]}
-boost = GridSearchCV(estimator=boost_, param_grid=params, cv=2,
-                                 scoring='log_loss', n_jobs=-1)
-# Fit using train data
-boost.fit(X_train, y_train)
-best_params = boost.best_params_
-print(best_params)
-
-
-# In[25]:
-
-# Predict probability on test data
-y_pred_proba_boost = boost.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_boost)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Gradient Boost Classifier
+    boost_ = ensemble.GradientBoostingClassifier()
+    # Grid search for optimal parameters
+    params = {'max_depth':[5, 10], 'learning_rate':[0.001, 0.01], 'n_estimators':[100, 500]}
+    boost = GridSearchCV(estimator=boost_, param_grid=params, cv=2,
+                                     scoring='neg_log_loss', n_jobs=-1)
+    # Fit using train data
+    boost.fit(X_train, y_train)
+    best_params = boost.best_params_
+    print(best_params)
 
 
-# #### Feature importance
+    # In[25]:
 
-# In[26]:
-
-# Feature importance
-boost_features = ensemble.GradientBoostingClassifier(**best_params)
-boost_features.fit(X_train, y_train)
-
-
-# In[27]:
-
-feature_importance = boost_features.feature_importances_
-feature_importance = 100.0 * (feature_importance / feature_importance.max())
-sorted_idx = np.argsort(feature_importance)
-sorted_idx
+    # Predict probability on test data
+    y_pred_proba_boost = boost.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_boost)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
-# In[28]:
+    # #### Feature importance
 
-# Visualize relative feature importance
-pos = np.arange(sorted_idx.shape[0]) + 1.
-fig, ax = plt.subplots(figsize=(6,7))
-ax.barh(pos, feature_importance[sorted_idx], align='center')
-plt.yticks(pos, training_set.columns[sorted_idx])
-ax.set_xlabel('Features Relative Importance')
-plt.tight_layout()
-plt.show()
+    # In[26]:
+
+    # Feature importance
+    boost_features = ensemble.GradientBoostingClassifier(**best_params)
+    boost_features.fit(X_train, y_train)
 
 
-# In[ ]:
+    # In[27]:
 
-# Take 3 best features with their interactions
-best_3 = [0, 8, 20, (0,8), (0,20), (8,20)]  # feature1, feature9, feature21
-# One-way and two-way partial dependence plots
-fig, ax = plt.subplots(figsize=(8,7))
-ensemble.partial_dependence.plot_partial_dependence(boost_features, X_train, best_3, ax=ax);
+    feature_importance = boost_features.feature_importances_
+    feature_importance = 100.0 * (feature_importance / feature_importance.max())
+    sorted_idx = np.argsort(feature_importance)
+    sorted_idx
+
+
+    # In[28]:
+
+    # Visualize relative feature importance
+    pos = np.arange(sorted_idx.shape[0]) + 1.
+    fig, ax = plt.subplots(figsize=(6,7))
+    ax.barh(pos, feature_importance[sorted_idx], align='center')
+    plt.yticks(pos, training_set.columns[sorted_idx])
+    ax.set_xlabel('Features Relative Importance')
+    plt.tight_layout()
+    plt.show()
+
+
+    # In[ ]:
+
+    # Take 3 best features with their interactions
+    best_3 = [0, 8, 20, (0,8), (0,20), (8,20)]  # feature1, feature9, feature21
+    # One-way and two-way partial dependence plots
+    fig, ax = plt.subplots(figsize=(8,7))
+    ensemble.partial_dependence.plot_partial_dependence(boost_features, X_train, best_3, ax=ax);
 
 
 # ### AdaBoost Classifier
+if (predict_proba_ada == True):
+    # In[ ]:
 
-# In[ ]:
-
-# AdaBoost Classifier
-# base estimator is a decision tree if not stated otherhwise
-ada_ = ensemble.AdaBoostClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
-                                   criterion='entropy', max_depth=5))
-# Grid search for optimal parameters
-#params = {'learning_rate':[0.001, 0.01, 0.1], 'n_estimators':[50, 100]}
-learning_rate = [0.001, 0.01, 0.1]
-n_estimators = [50, 100]
-param_grid = dict(learning_rate=learning_rate, n_estimators=n_estimators)
-ada = GridSearchCV(estimator=ada_, param_grid=param_grid, cv=2,
-                               scoring='log_loss', n_jobs=-1)
-# Fit using train data
-ada.fit(X_train, y_train)
-best_params = ada.best_params_
-print(best_params)
+    # AdaBoost Classifier
+    # base estimator is a decision tree if not stated otherhwise
+    ada_ = ensemble.AdaBoostClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
+                                       criterion='entropy', max_depth=5))
+    # Grid search for optimal parameters
+    #params = {'learning_rate':[0.001, 0.01, 0.1], 'n_estimators':[50, 100]}
+    learning_rate = [0.001, 0.01, 0.1]
+    n_estimators = [50, 100]
+    param_grid = dict(learning_rate=learning_rate, n_estimators=n_estimators)
+    ada = GridSearchCV(estimator=ada_, param_grid=param_grid, cv=2,
+                                   scoring='neg_log_loss', n_jobs=-1)
+    # Fit using train data
+    ada.fit(X_train, y_train)
+    best_params = ada.best_params_
+    print(best_params)
 
 
-# In[ ]:
+    # In[ ]:
 
-# Predict probability on test data
-y_pred_proba_ada = ada.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_ada)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Predict probability on test data
+    y_pred_proba_ada = ada.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_ada)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
 # ### Bagging classifier
+if (predict_proba_bagg == True):
+    # In[ ]:
 
-# In[ ]:
-
-# Bagging classifier
-# base estimator is a decision tree if not stated otherhwise
-bagg = ensemble.BaggingClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
-                                  criterion='entropy', max_depth=5), n_estimators=100,
-                                  max_samples=0.6, max_features=0.8, oob_score=True, n_jobs=-1)
-# Fit
-bagg.fit(X_train, y_train)
+    # Bagging classifier
+    # base estimator is a decision tree if not stated otherhwise
+    bagg = ensemble.BaggingClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
+                                      criterion='entropy', max_depth=5), n_estimators=100,
+                                      max_samples=0.6, max_features=0.8, oob_score=True, n_jobs=-1)
+    # Fit
+    bagg.fit(X_train, y_train)
 
 
-# In[ ]:
+    # In[ ]:
 
-# Predict probability on test data
-y_pred_proba_bagg = bagg.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_bagg)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Predict probability on test data
+    y_pred_proba_bagg = bagg.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_bagg)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
 # ### Stochastic Gradient Descent
+if (predict_proba_desc == True):
+    # In[ ]:
 
-# In[ ]:
-
-# Stochastic Gradient Descent Classifier
-desc = linear_model.SGDClassifier(loss='log', penalty='l1', learning_rate='constant',
-                                  eta0=0.001, n_jobs=-1)
-# Fit
-desc.fit(X_train, y_train)
-
-
-# In[ ]:
-
-# Predict probability on test data
-y_pred_proba_desc = desc.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_desc)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Stochastic Gradient Descent Classifier
+    desc = linear_model.SGDClassifier(loss='log', penalty='l1', learning_rate='constant',
+                                      eta0=0.001, n_jobs=-1)
+    # Fit
+    desc.fit(X_train, y_train)
 
 
-# In[ ]:
+    # In[ ]:
 
-# Calibrated Stochastic Gradient Descent Classifier
-desc_cal = CalibratedClassifierCV(desc, cv=5, method='isotonic')
-# Fit
-desc_cal.fit(X_train, y_train)
+    # Predict probability on test data
+    y_pred_proba_desc = desc.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_desc)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
-# In[ ]:
+    # In[ ]:
 
-# Predict probability on test data
-y_pred_proba_desc = desc_cal.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_desc)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Calibrated Stochastic Gradient Descent Classifier
+    desc_cal = CalibratedClassifierCV(desc, cv=5, method='isotonic')
+    # Fit
+    desc_cal.fit(X_train, y_train)
+
+
+    # In[ ]:
+
+    # Predict probability on test data
+    y_pred_proba_desc = desc_cal.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_desc)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
 # ### K-Nearest Neighbors
+if (predict_proba_knn == True):
+    # In[ ]:
 
-# In[ ]:
-
-# K-Nearest Neighbors Classifier
-knn = KNeighborsClassifier(n_neighbors=600, weights='distance', metric='chebyshev', n_jobs=-1)
-# Fit
-knn.fit(X_train, y_train)
-
-
-# In[ ]:
-
-# Predict probability on test data
-y_pred_proba_knn = knn.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_knn)
-print('Log-loss: {:.6f}'.format(logloss))
+    # K-Nearest Neighbors Classifier
+    knn = KNeighborsClassifier(n_neighbors=600, weights='distance', metric='chebyshev', n_jobs=-1)
+    # Fit
+    knn.fit(X_train, y_train)
 
 
-# In[ ]:
+    # In[ ]:
 
-# Calibrated KNN Classifier
-knn_cal = CalibratedClassifierCV(knn, cv=2, method='isotonic')
-# Fit
-knn_cal.fit(X_train, y_train)
+    # Predict probability on test data
+    y_pred_proba_knn = knn.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_knn)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
-# In[ ]:
+    # In[ ]:
 
-# Predict probability on test data
-y_pred_proba_knn = knn_cal.predict_proba(X_test)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_test, y_pred_proba_knn)
-print('Log-loss: {:.6f}'.format(logloss))
+    # Calibrated KNN Classifier
+    knn_cal = CalibratedClassifierCV(knn, cv=2, method='isotonic')
+    # Fit
+    knn_cal.fit(X_train, y_train)
+
+
+    # In[ ]:
+
+    # Predict probability on test data
+    y_pred_proba_knn = knn_cal.predict_proba(X_test)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_test, y_pred_proba_knn)
+    print('Log-loss: {:.6f}'.format(logloss))
 
 
 # ## Ensamble different classifiers
@@ -998,22 +1017,35 @@ print('Log-loss: {:.6f}'.format(logloss))
 
 # Different classifiers predictions
 ordered_predictions = OrderedDict()
-ordered_predictions['keras'] = y_pred_proba_nn[:,1]
-ordered_predictions['logreg'] = y_pred_proba_logreg[:,1]
-ordered_predictions['bayes'] = y_pred_proba_bayes[:,1]
-ordered_predictions['forest'] = y_pred_proba_forest[:,1]
-ordered_predictions['trees'] = y_pred_proba_trees[:,1]
-ordered_predictions['bagg'] = y_pred_proba_bagg[:,1]
-ordered_predictions['boost'] = y_pred_proba_boost[:,1]
-ordered_predictions['ada'] = y_pred_proba_ada[:,1]
-ordered_predictions['desc'] = y_pred_proba_desc[:,1]
-ordered_predictions['knn'] = y_pred_proba_knn[:,1]
+if (predict_proba_nn == True):
+    ordered_predictions['keras'] = y_pred_proba_nn[:,1]
+if (predict_proba_logreg == True):
+    ordered_predictions['logreg'] = y_pred_proba_logreg[:,1]
+if (predict_proba_bayes == True):
+    ordered_predictions['bayes'] = y_pred_proba_bayes[:,1]
+if (predict_proba_svc == True):
+    ordered_predictions['svc'] = y_pred_proba_svc[:,1]
+if (predict_proba_forest == True):
+    ordered_predictions['forest'] = y_pred_proba_forest[:,1]
+if (predict_proba_trees == True):
+    ordered_predictions['trees'] = y_pred_proba_trees[:,1]
+if (predict_proba_bagg == True):
+    ordered_predictions['bagg'] = y_pred_proba_bagg[:,1]
+if (predict_proba_boost == True):
+    ordered_predictions['boost'] = y_pred_proba_boost[:,1]
+if (predict_proba_ada == True):
+    ordered_predictions['ada'] = y_pred_proba_ada[:,1]
+if (predict_proba_desc == True):
+    ordered_predictions['desc'] = y_pred_proba_desc[:,1]
+if (predict_proba_knn == True):
+    ordered_predictions['knn'] = y_pred_proba_knn[:,1]
+
 proba_all = pd.DataFrame(data=ordered_predictions)
 
 
 # In[ ]:
-
-proba_all.head()
+print("# Head of proba_all...")
+print(proba_all.head())
 
 
 # In[ ]:
@@ -1024,13 +1056,13 @@ with open('classifier_pred_proba.pkl', 'wb') as fout:
 
 
 # In[ ]:
-
-proba_all.shape
+print("# Proba_all shape:")
+print(proba_all.shape)
 
 
 # In[ ]:
-
-y_test.shape
+print("# y_test shape:")
+print(y_test.shape)
 
 
 # In[ ]:
@@ -1086,7 +1118,7 @@ second = LogisticRegression()
 # Grid search for optimal parameters
 params = {'C':[0.1, 1., 10.], 'penalty':['l1', 'l2']}
 grid_second = GridSearchCV(estimator=second, param_grid=params,
-                                       cv=3, scoring='log_loss', n_jobs=-1)
+                                       cv=3, scoring='neg_log_loss', n_jobs=-1)
 grid_second.fit(X_train_second, y_train_second)
 best_params = grid_second.best_params_
 print(best_params)
@@ -1103,7 +1135,7 @@ print('Log-loss: {:.6f}'.format(logloss))
 
 # Ridge regression with built-in cross validation
 linear = linear_model.RidgeCV(alphas=(0.1, 1.0, 10.0), fit_intercept=False,
-                              cv=3, scoring='log_loss')
+                              cv=3, scoring='neg_log_loss')
 # Fit
 linear.fit(X_train_second, y_train_second)
 # Predict
@@ -1247,7 +1279,7 @@ mdl = ensemble.ExtraTreesClassifier()
 # Grid search for optimal parameters
 params = {'n_estimators':[100, 400], 'criterion':['gini', 'entropy'], 'max_depth':[3, 5]}
 stacker = GridSearchCV(estimator=mdl, param_grid=params, cv=2,
-                                   scoring='log_loss', n_jobs=-1)
+                                   scoring='neg_log_loss', n_jobs=-1)
 stacker.fit(X_train_union, y_train_union)
 best_params = stacker.best_params_
 print(best_params)
@@ -1580,4 +1612,5 @@ with open('predictions.csv', 'w') as fout:
     print('"id","{}"'.format(prob_who), file=fout)
     for id_val, proba in zip(test_set.index, y_proba_predicted):
         print(id_val, proba, sep=',', file=fout)
+
 
