@@ -6,12 +6,14 @@ who = "bernie"
 #dirloc = "local"
 dirloc = "server"
 
+plot_enabled = False
 plot_predictivity = False
 plot_autocorrelation = False
 plot_losses_nn = False
+plot_corr_matrix = False
 
-predict_proba_nn = False
-predict_proba_logreg = False
+predict_proba_nn = True
+predict_proba_logreg = True
 predict_proba_svc = False
 predict_proba_bayes = True
 predict_proba_forest = True
@@ -21,6 +23,12 @@ predict_proba_boost = True
 predict_proba_ada = True
 predict_proba_desc = True
 predict_proba_knn = True
+
+blend_logreg = True
+blend_linear = True
+blend_trees = True
+blend_nn = True
+
 
 reverse_dataset = False
 use_tsne = False
@@ -112,6 +120,13 @@ class Timer:
     self.iter = self.iter + 1
     self.restart()
 
+class LossHistory(keras.callbacks.Callback):
+    # For recording the training history (loss)
+    def on_train_begin(self, logs={}):
+        self.losses = []
+    def on_batch_end(self, batch, logs={}):
+        self.losses.append(logs.get('loss'))
+
 def header(htext):
 
     print("# -------------------------------------------------")
@@ -156,7 +171,7 @@ print (training_set.head())
 my_timer.benchmark()
 
 
-if (plot_predictivity == True):
+if (plot_predictivity == True and plot_enabled == True):
 
     # Predictivity
     pearson = training_set.corr('pearson')
@@ -171,7 +186,7 @@ if (plot_predictivity == True):
     plt.hist(training_set['feature1']);
 
 
-if (plot_autocorrelation == True):
+if (plot_autocorrelation == True and plot_enabled == True):
 
     # Autocorrelation
     pd.tools.plotting.lag_plot(training_set['feature1']);
@@ -245,18 +260,18 @@ X_train, X_test, y_train, y_test = model_selection.train_test_split(X_data, y_da
 # #### A) Enginner new features using PCA & LDA
 print ("# Engineer new features using PCA & LDA...")
 
-# In[ ]:
 
 # Select best features using principal component analysis
 pca = PCA(n_components=4)
 lda = LinearDiscriminantAnalysis(n_components=2)
 # Make a union of features
+print("# Make a union of features...")
 union = FeatureUnion([('LDA',lda), ('PCA',pca)])
 # Note: This 'union' can be used in Pipeline with any classifier
 #       (see below an example with Logistic regression)
 
-
-# In[ ]:
+#Execution time...
+my_timer.benchmark()
 
 # Alternative: Instead of using FeatureUnion in Pipeline, it can
 # be used to transform the train, test and validate data sets
@@ -272,7 +287,7 @@ my_timer.benchmark()
 if (use_tsne == True):
 
     # #### B) Engineer new features using t-SNE
-    print ("# Engineer new features using t-SNE...")
+    header("# Engineer new features using t-SNE...")
 
     # t-SNE can be used with different 'no_dims' and 'perplexity' values
     # providing different features each time (that can be stacked together)
@@ -299,6 +314,7 @@ if (use_tsne == True):
 if (use_interactions == True):
 
     # In[ ]:
+    header("# Feature interactions")
 
     # Feature interactions on ***principal component features***
     print ("# Feature interactions on ***principal component features***...")
@@ -308,8 +324,6 @@ if (use_interactions == True):
     X_test_interact = interactions.transform(X_test_best)
     X_predict_interact = interactions.transform(X_predict_best)
 
-
-    # In[ ]:
 
     # Stack engineered features with the original ones
     print ("# Stack engineered features with the original ones...")
@@ -321,7 +335,6 @@ if (use_interactions == True):
     #X_test[X_test <= 0] = 0
     #X_train[X_train >= 1] = 1
 
-    # In[ ]:
 
     # Feature interactions using several ***best original features***
     print ("# Feature interactions using several ***best original features***...")
@@ -378,6 +391,7 @@ if (use_interactions == True):
 if (predict_proba_nn == True):
     # In[ ]:
 
+    header("# Keras Neural Network for Classification")
     # -- jirka --- TODO: need to make two executions
 
     # NOTE: Needed only with the theano backend!
@@ -470,18 +484,6 @@ if (predict_proba_nn == True):
     y_test_nn = keras.utils.np_utils.to_categorical(y_test)
 
 
-    # In[ ]:
-
-    class LossHistory(keras.callbacks.Callback):
-        # For recording the training history (loss)
-        def on_train_begin(self, logs={}):
-            self.losses = []
-        def on_batch_end(self, batch, logs={}):
-            self.losses.append(logs.get('loss'))
-
-
-    # In[ ]:
-
     # Early stopping of training process (if no improvement)
     early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, mode='auto')
 
@@ -495,7 +497,7 @@ if (predict_proba_nn == True):
 
 
     # In[ ]:
-    if (plot_losses_nn == True):
+    if (plot_losses_nn == True and plot_enabled == True):
         plt.figure(figsize=(7,5))
         plt.plot(history.losses[100::10])  # every 10th point from 100 to the end
         plt.show()
@@ -508,7 +510,6 @@ if (predict_proba_nn == True):
     print('\nLog-loss: {:g}, Accuracy: {:.2f} %'.format(score[0], score[1]*100))
 
 
-    # In[ ]:
 
     # Predict class probability on test data
     y_pred_proba_nn = model.predict_proba(X_test, batch_size=batch_size)
@@ -525,20 +526,14 @@ if (predict_proba_nn == True):
     X_train = X_train[:, 0]
     X_test = X_test[:, 0]
 
-
-
-
-
+    # Execution time...
+    my_timer.benchmark()
 
 
 # ### Logistic Regression
 if (predict_proba_logreg == True):
-    # In[ ]:
 
-    # End time
-    end_time2 = time.time()
-    print('Execution time 2: {:g} seconds'.format(end_time2 - end_time))
-
+    header("# Logistic Regression")
 
     # Logistic regression
     logreg = LogisticRegression()
@@ -556,7 +551,7 @@ if (predict_proba_logreg == True):
     #grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
     #                                scoring='neg_log_loss', n_jobs=-1)
     grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
-                                    scoring='neg_log_loss', n_jobs=1, verbose=3)
+                                    scoring='neg_log_loss', n_jobs=-1, verbose=3)
     grid.fit(X_train, y_train)
     best_params = grid.best_params_
     print ("# Grid search - best params:")
@@ -566,7 +561,7 @@ if (predict_proba_logreg == True):
     my_timer.benchmark()
 
 
-    # In[23]:
+
 
     # Predict probability on test data
     print ("# Predict probability on test data...")
@@ -578,7 +573,6 @@ if (predict_proba_logreg == True):
     # Execution time...
     my_timer.benchmark()
 
-    # In[ ]:
 
     # Calibrated Logistic regression classifier
     print ("# Calibrated Logistic regression classifier...")
@@ -586,8 +580,6 @@ if (predict_proba_logreg == True):
     # Fit
     grid_cal.fit(X_train, y_train)
 
-
-    # In[ ]:
 
     # Predict probability on test data
     print ("# Predict probability on test data after calibration...")
@@ -631,8 +623,9 @@ if (predict_proba_logreg == True):
 if (predict_proba_svc == True):
 
     # Support Vector Classification
-    print("# Support Vector Classification...")
-    svc = svm.NuSVC(nu=0.5, kernel='linear', probability=False, shrinking=False, verbose=3)  # Slow with: probability=True
+    header("# Support Vector Classification...")
+    svc = svm.NuSVC(nu=0.5, kernel='linear', probability=True, shrinking=True, verbose=3)  # Slow with: probability=True
+    # Jirka: probability=True might be slow, but: AttributeError: predict_proba is not available when  probability=False
     # Fit
     svc.fit(X_train, y_train)
 
@@ -653,7 +646,7 @@ if (predict_proba_svc == True):
 if (predict_proba_bayes == True):
 
     # Gaussian Naive Bayes
-    print("# Gaussian Naive Bayes...")
+    header("# Gaussian Naive Bayes...")
     bayes = GaussianNB()
 
     # Fit
@@ -696,10 +689,13 @@ if (predict_proba_bayes == True):
     logloss = metrics.log_loss(y_test, y_pred_proba_bayes)
     print('Log-loss: {:.6f}'.format(logloss))
 
+    # Execution time...
+    my_timer.benchmark()
 
 # ### Random Forest Classifier
 if (predict_proba_forest == True):
-    # In[ ]:
+
+    header("# Random Forest Classifier")
 
     # Random Forest Classifier
     forest = ensemble.RandomForestClassifier(n_estimators=100, criterion='entropy',
@@ -716,10 +712,13 @@ if (predict_proba_forest == True):
     logloss = metrics.log_loss(y_test, y_pred_proba_forest)
     print('Log-loss: {:.6f}'.format(logloss))
 
+    # Execution time...
+    my_timer.benchmark()
 
 # ### Extra Trees Classifier
 if (predict_proba_trees == True):
-    # In[ ]:
+
+    header("# Extra Trees Classifier")
 
     # Extra Trees Classifier
     trees = ensemble.ExtraTreesClassifier(n_estimators=100, criterion='entropy', max_depth=5, n_jobs=-1)
@@ -727,7 +726,6 @@ if (predict_proba_trees == True):
     trees.fit(X_train, y_train)
 
 
-    # In[ ]:
 
     # Predict probability on test data
     y_pred_proba_trees = trees.predict_proba(X_test)
@@ -782,30 +780,38 @@ if (predict_proba_trees == True):
     X_train_top = features_model.transform(X_train)
     X_train_top.shape
 
+    # Execution time...
+    my_timer.benchmark()
 
 # ### Gradient Boost Classifier
 if (predict_proba_boost == True):
-    # In[ ]:
 
     # Gradient Boost Classifier
+    header("# Gradient Boost Classifier")
+
     boost_ = ensemble.GradientBoostingClassifier()
     # Grid search for optimal parameters
     params = {'max_depth':[5, 10], 'learning_rate':[0.001, 0.01], 'n_estimators':[100, 500]}
     boost = GridSearchCV(estimator=boost_, param_grid=params, cv=2,
                                      scoring='neg_log_loss', n_jobs=-1)
+
     # Fit using train data
+    print("# Fit using train data")
     boost.fit(X_train, y_train)
     best_params = boost.best_params_
+    print("# Best params:")
     print(best_params)
 
 
-    # In[25]:
 
     # Predict probability on test data
     y_pred_proba_boost = boost.predict_proba(X_test)
     # Accuracy metrics (log-loss)
     logloss = metrics.log_loss(y_test, y_pred_proba_boost)
     print('Log-loss: {:.6f}'.format(logloss))
+
+    # Execution time...
+    my_timer.benchmark()
 
 
     # #### Feature importance
@@ -822,35 +828,36 @@ if (predict_proba_boost == True):
     feature_importance = boost_features.feature_importances_
     feature_importance = 100.0 * (feature_importance / feature_importance.max())
     sorted_idx = np.argsort(feature_importance)
-    sorted_idx
+    print("# sorted_idx:")
+    print(sorted_idx)
 
+    if (plot_enabled == True):
+        # Visualize relative feature importance
+        pos = np.arange(sorted_idx.shape[0]) + 1.
+        fig, ax = plt.subplots(figsize=(6,7))
+        ax.barh(pos, feature_importance[sorted_idx], align='center')
+        plt.yticks(pos, training_set.columns[sorted_idx])
+        ax.set_xlabel('Features Relative Importance')
+        plt.tight_layout()
+        plt.show()
 
-    # In[28]:
-
-    # Visualize relative feature importance
-    pos = np.arange(sorted_idx.shape[0]) + 1.
-    fig, ax = plt.subplots(figsize=(6,7))
-    ax.barh(pos, feature_importance[sorted_idx], align='center')
-    plt.yticks(pos, training_set.columns[sorted_idx])
-    ax.set_xlabel('Features Relative Importance')
-    plt.tight_layout()
-    plt.show()
-
-
-    # In[ ]:
 
     # Take 3 best features with their interactions
     best_3 = [0, 8, 20, (0,8), (0,20), (8,20)]  # feature1, feature9, feature21
     # One-way and two-way partial dependence plots
     fig, ax = plt.subplots(figsize=(8,7))
-    ensemble.partial_dependence.plot_partial_dependence(boost_features, X_train, best_3, ax=ax);
+    ensemble.partial_dependence.plot_partial_dependence(boost_features, X_train, best_3, ax=ax)
+
+    # Execution time...
+    my_timer.benchmark()
 
 
 # ### AdaBoost Classifier
 if (predict_proba_ada == True):
-    # In[ ]:
 
     # AdaBoost Classifier
+    header("# AdaBoost Classifier")
+
     # base estimator is a decision tree if not stated otherhwise
     ada_ = ensemble.AdaBoostClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
                                        criterion='entropy', max_depth=5))
@@ -867,20 +874,21 @@ if (predict_proba_ada == True):
     print(best_params)
 
 
-    # In[ ]:
-
     # Predict probability on test data
     y_pred_proba_ada = ada.predict_proba(X_test)
     # Accuracy metrics (log-loss)
     logloss = metrics.log_loss(y_test, y_pred_proba_ada)
     print('Log-loss: {:.6f}'.format(logloss))
 
+    # Execution time...
+    my_timer.benchmark()
 
 # ### Bagging classifier
 if (predict_proba_bagg == True):
-    # In[ ]:
 
     # Bagging classifier
+    header("# Bagging classifier")
+
     # base estimator is a decision tree if not stated otherhwise
     bagg = ensemble.BaggingClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
                                       criterion='entropy', max_depth=5), n_estimators=100,
@@ -888,28 +896,27 @@ if (predict_proba_bagg == True):
     # Fit
     bagg.fit(X_train, y_train)
 
-
-    # In[ ]:
-
     # Predict probability on test data
     y_pred_proba_bagg = bagg.predict_proba(X_test)
     # Accuracy metrics (log-loss)
     logloss = metrics.log_loss(y_test, y_pred_proba_bagg)
     print('Log-loss: {:.6f}'.format(logloss))
 
+    # Execution time...
+    my_timer.benchmark()
 
 # ### Stochastic Gradient Descent
 if (predict_proba_desc == True):
-    # In[ ]:
 
     # Stochastic Gradient Descent Classifier
-    desc = linear_model.SGDClassifier(loss='log', penalty='l1', learning_rate='constant',
+    header("# Stochastic Gradient Descent")
+
+    desc = linear_model.SGDClassifier(loss='log', penalty='l1', learning_rate='constant', max_iter=100,
                                       eta0=0.001, n_jobs=-1)
     # Fit
     desc.fit(X_train, y_train)
 
 
-    # In[ ]:
 
     # Predict probability on test data
     y_pred_proba_desc = desc.predict_proba(X_test)
@@ -918,15 +925,11 @@ if (predict_proba_desc == True):
     print('Log-loss: {:.6f}'.format(logloss))
 
 
-    # In[ ]:
-
     # Calibrated Stochastic Gradient Descent Classifier
     desc_cal = CalibratedClassifierCV(desc, cv=5, method='isotonic')
     # Fit
     desc_cal.fit(X_train, y_train)
 
-
-    # In[ ]:
 
     # Predict probability on test data
     y_pred_proba_desc = desc_cal.predict_proba(X_test)
@@ -934,18 +937,20 @@ if (predict_proba_desc == True):
     logloss = metrics.log_loss(y_test, y_pred_proba_desc)
     print('Log-loss: {:.6f}'.format(logloss))
 
+    # Execution time...
+    my_timer.benchmark()
+
 
 # ### K-Nearest Neighbors
 if (predict_proba_knn == True):
-    # In[ ]:
 
     # K-Nearest Neighbors Classifier
+    header("# K-Nearest Neighbors Classifier")
+
     knn = KNeighborsClassifier(n_neighbors=600, weights='distance', metric='chebyshev', n_jobs=-1)
     # Fit
     knn.fit(X_train, y_train)
 
-
-    # In[ ]:
 
     # Predict probability on test data
     y_pred_proba_knn = knn.predict_proba(X_test)
@@ -954,15 +959,10 @@ if (predict_proba_knn == True):
     print('Log-loss: {:.6f}'.format(logloss))
 
 
-    # In[ ]:
-
     # Calibrated KNN Classifier
     knn_cal = CalibratedClassifierCV(knn, cv=2, method='isotonic')
     # Fit
     knn_cal.fit(X_train, y_train)
-
-
-    # In[ ]:
 
     # Predict probability on test data
     y_pred_proba_knn = knn_cal.predict_proba(X_test)
@@ -970,13 +970,16 @@ if (predict_proba_knn == True):
     logloss = metrics.log_loss(y_test, y_pred_proba_knn)
     print('Log-loss: {:.6f}'.format(logloss))
 
+    # Execution time...
+    my_timer.benchmark()
 
 # ## Ensamble different classifiers
+header("# Ensamble different classifiers")
 
 # ### A) Ensemble by voting (soft)
 
 # In[ ]:
-
+'''
 # Ensamble classifiers
 use_estimators = [('logreg',logreg), ('bayes',bayes), ('bagg',bagg),
                   ('forest',forest), ('trees',trees), ('ada',ada),
@@ -984,10 +987,45 @@ use_estimators = [('logreg',logreg), ('bayes',bayes), ('bagg',bagg),
 
 # Assign weights for the ensamble
 w = [2, 2, 1, 2, 1, 2, 2, 1, 2]
+'''
 
+#assamble classifiers and weights
+use_estimators = []
+w = []
+if (predict_proba_logreg == True):
+    use_estimators.append(('logreg',logreg))
+    w.append(2)
+if (predict_proba_bayes == True):
+    use_estimators.append(('bayes',bayes))
+    w.append(2)
+if (predict_proba_bagg == True):
+    use_estimators.append(('bagg',bagg))
+    w.append(1)
+if (predict_proba_forest == True):
+    use_estimators.append(('forest',forest))
+    w.append(2)
+if (predict_proba_trees == True):
+    use_estimators.append(('trees',trees))
+    w.append(1)
+if (predict_proba_ada == True):
+    use_estimators.append(('ada',ada))
+    w.append(2)
+if (predict_proba_boost == True):
+    use_estimators.append(('boost',boost))
+    w.append(2)
+if (predict_proba_knn == True):
+    use_estimators.append(('knn',knn_cal))
+    w.append(1)
+if (predict_proba_desc == True):
+    use_estimators.append(('desc',desc_cal))
+    w.append(2)
 
 # In[ ]:
+print("# use_estimators:")
+print(use_estimators)
 
+print("# w:")
+print(w)
 # Ensamble classifiers (soft voting)
 voting = ensemble.VotingClassifier(estimators=use_estimators, voting='soft', weights=w)
 
@@ -1043,53 +1081,48 @@ if (predict_proba_knn == True):
 proba_all = pd.DataFrame(data=ordered_predictions)
 
 
-# In[ ]:
 print("# Head of proba_all...")
 print(proba_all.head())
 
 
-# In[ ]:
 
 # Pickle classifier prediction probabilities
+header("# Pickle classifier prediction probabilities")
 with open('classifier_pred_proba.pkl', 'wb') as fout:
     pickle.dump(proba_all, fout)
 
 
-# In[ ]:
 print("# Proba_all shape:")
 print(proba_all.shape)
 
 
-# In[ ]:
 print("# y_test shape:")
 print(y_test.shape)
 
 
-# In[ ]:
+if (plot_corr_matrix == True and plot_enabled == True):
+    pearson = proba_all.corr('pearson')
+    # Correlation matrix as heatmap (seaborn)
+    fig, ax = plt.subplots(figsize=(7,6))
+    sns.heatmap(pearson, annot=True, annot_kws=dict(size=9), vmin=-1, vmax=1, ax=ax)
+    plt.tight_layout()
+    plt.show()
 
-pearson = proba_all.corr('pearson')
-# Correlation matrix as heatmap (seaborn)
-fig, ax = plt.subplots(figsize=(7,6))
-sns.heatmap(pearson, annot=True, annot_kws=dict(size=9), vmin=-1, vmax=1, ax=ax)
-plt.tight_layout()
-plt.show()
 
-
-# In[ ]:
 
 # Load pickled classifier prediction probabilities
+print("# Load pickled classifier prediction probabilities...")
 with open('classifier_pred_proba.pkl', 'rb') as fin:
     proba_all = pickle.load(fin)
 
 
-# In[ ]:
 
 # Split the first stage predictions in train & test set
+print("# Split the first stage predictions in train & test set...")
 split_ratio = 0.9  # train vs test ratio
 N = int(X_test.shape[0]*split_ratio)
 
 
-# In[ ]:
 
 X_train_second = proba_all.values[:N,:]
 print(X_train_second.shape)
@@ -1101,129 +1134,183 @@ y_validate = y_test[N:]
 print(y_validate.shape)
 
 
-# In[ ]:
 
 # Split data into train and test samples (random ordering)
+print("# Split data into train and test samples (random ordering)...")
 test_split_ratio = (1 - split_ratio)
 #X_train_second, X_validate, y_train_second, y_validate =     model_selection.train_test_split(proba_all.values, y_test, train_size=split_ratio)
-X_train_second, X_validate, y_train_second, y_validate =     model_selection.train_test_split(proba_all.values, y_test, test_size=test_split_ratio)
-
+X_train_second, X_validate, y_train_second, y_validate =  model_selection.train_test_split(proba_all.values, y_test, test_size=test_split_ratio)
 
 # #### Blending with Logistic Regression
+if (blend_logreg == True):
 
-# In[ ]:
+    # #### Blending with Logistic Regression
+    header("# Blending with Logistic Regression")
 
-# Second stage classifier
-second = LogisticRegression()
-# Grid search for optimal parameters
-params = {'C':[0.1, 1., 10.], 'penalty':['l1', 'l2']}
-grid_second = GridSearchCV(estimator=second, param_grid=params,
-                                       cv=3, scoring='neg_log_loss', n_jobs=-1)
-grid_second.fit(X_train_second, y_train_second)
-best_params = grid_second.best_params_
-print(best_params)
-# Predict probability on test data
-y_pred_proba_logreg_second = grid_second.predict_proba(X_validate)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_validate, y_pred_proba_logreg_second)
-print('Log-loss: {:.6f}'.format(logloss))
+
+    # Second stage classifier
+    print("# Second stage classifier")
+    second = LogisticRegression()
+    # Grid search for optimal parameters
+    params = {'C':[0.1, 1., 10.], 'penalty':['l1', 'l2']}
+    grid_second = GridSearchCV(estimator=second, param_grid=params,
+                                           cv=3, scoring='neg_log_loss', n_jobs=-1)
+    grid_second.fit(X_train_second, y_train_second)
+    best_params = grid_second.best_params_
+    print("# Best params:")
+    print(best_params)
+    # Predict probability on test data
+    y_pred_proba_logreg_second = grid_second.predict_proba(X_validate)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_validate, y_pred_proba_logreg_second)
+    print('Log-loss: {:.6f}'.format(logloss))
+
+    # Execution time...
+    my_timer.benchmark()
 
 
 # #### Blending with Linear Regression
+if (blend_linear == True):
 
-# In[ ]:
+    # #### Blending with Linear Regression
+    header("# Blending with Linear Regression")
 
-# Ridge regression with built-in cross validation
-linear = linear_model.RidgeCV(alphas=(0.1, 1.0, 10.0), fit_intercept=False,
-                              cv=3, scoring='neg_log_loss')
-# Fit
-linear.fit(X_train_second, y_train_second)
-# Predict
-y_pred_linear = linear.predict(X_validate)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_validate, y_pred_linear)
-print('Log-loss: {:.6f}'.format(logloss))
+
+    # Ridge regression with built-in cross validation
+    '''linear = linear_model.RidgeCV(alphas=(0.1, 1.0, 10.0), fit_intercept=False,
+                                  cv=3, scoring='neg_log_loss')'''
+
+    alphas = [0.1, 1, 10, 100, 1e3, 1e4, 2e4, 5e4, 8e4, 1e5, 1e6, 1e7, 1e8]
+    reg = linear_model.RidgeCV(alphas=alphas, store_cv_values=True)
+    # reg.fit(train_x, train_y, sample_weight=sample_weight)
+    print("# Fit cross validation...")
+    reg.fit(X_train_second, y_train_second)
+    cv_mse = np.mean(reg.cv_values_, axis=0)
+    print("alphas: {}".format(alphas))
+    print("CV MSE: {}".format(cv_mse))
+    print("Best alpha using built-in RidgeCV: {}".format(reg.alpha_))
+
+    # generate the prediction using the best model
+    alpha = reg.alpha_
+    linear = linear_model.Ridge(alpha=alpha)
+    # linear.fit(train_x, train_y, sample_weight=sample_weight)
+    linear.fit(X_train_second, y_train_second)
+
+
+    ''''# Fit
+    print("# Fit...")
+    linear.fit(X_train_second, y_train_second)'''
+
+    # Predict
+    print("# Predict...")
+    y_pred_linear = linear.predict(X_validate)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_validate, y_pred_linear)
+    print('Log-loss: {:.6f}'.format(logloss))
+
+    # Execution time...
+    my_timer.benchmark()
 
 
 # #### Blending with Extremely Randomized Trees
+if (blend_trees == True):
 
-# In[ ]:
+    # #### Blending with Extremely Randomized Trees
+    header("# Blending with Extremely Randomized Trees")
 
-trees_second = ensemble.ExtraTreesClassifier(n_estimators=100, criterion='entropy', max_depth=5, n_jobs=-1)
-# Fit
-trees_second.fit(X_train_second, y_train_second)
-# Predict
-trees_second.predict_proba(X_validate)
-# Accuracy metrics (log-loss)
-logloss = metrics.log_loss(y_validate, y_pred_proba_logreg_second)
-print('Log-loss: {:.6f}'.format(logloss))
+
+
+    trees_second = ensemble.ExtraTreesClassifier(n_estimators=100, criterion='entropy', max_depth=5, n_jobs=-1)
+    # Fit
+    trees_second.fit(X_train_second, y_train_second)
+    # Predict
+    trees_second.predict_proba(X_validate)
+    # Accuracy metrics (log-loss)
+    logloss = metrics.log_loss(y_validate, y_pred_proba_logreg_second)
+    print('Log-loss: {:.6f}'.format(logloss))
+
+    # Execution time...
+    my_timer.benchmark()
 
 
 # #### Blending with Keras Network Classifier
+if (blend_nn == True):
 
-# In[ ]:
+    # #### Blending with Keras Network Classifier
+    header("# Blending with Keras Network Classifier")
 
-#Build a feed forward neural network for classification
-model_blend = keras.models.Sequential()
+    print("# proba_all.head:")
+    print(proba_all.head())
 
-# Input layer
-model_blend.add(keras.layers.Dense(1024, input_shape=proba_all.shape[1], init='glorot_uniform'))
-model_blend.add(keras.layers.Activation('tanh'))
-model_blend.add(keras.layers.Dropout(0.5))
-# hidden layer
-model_blend.add(keras.layers.Dense(512, init='glorot_uniform'))
-model_blend.add(keras.layers.Activation('tanh'))
-model_blend.add(keras.layers.Dropout(0.5))
-# Output layer
-model_blend.add(keras.layers.Dense(2, init='glorot_uniform'))
-model_blend.add(keras.layers.Activation('softmax'))
+    print("# proba_all.shape[1]:")
+    print(proba_all.shape[1])
 
-# Optimizer
-sgd = keras.optimizers.SGD(lr=0.01, momentum=0.9, decay=1e-2, nesterov=True)
+    # Build a feed forward neural network for classification
+    print("#Build a feed forward neural network for classification...")
+    model_blend = keras.models.Sequential()
 
-# Compile network
-model_blend.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
+    # Input layer
+    #model_blend.add(keras.layers.Dense(1024, input_shape=proba_all.shape[1], init='glorot_uniform'))
+    model_blend.add(keras.layers.Dense(1024, input_shape=(proba_all.shape[1],), init='glorot_uniform'))
+    model_blend.add(keras.layers.Activation('tanh'))
+    model_blend.add(keras.layers.Dropout(0.5))
+    # hidden layer
+    model_blend.add(keras.layers.Dense(512, init='glorot_uniform'))
+    model_blend.add(keras.layers.Activation('tanh'))
+    model_blend.add(keras.layers.Dropout(0.5))
+    # Output layer
+    model_blend.add(keras.layers.Dense(2, init='glorot_uniform'))
+    model_blend.add(keras.layers.Activation('softmax'))
 
+    # Optimizer
+    sgd = keras.optimizers.SGD(lr=0.01, momentum=0.9, decay=1e-2, nesterov=True)
 
-# In[ ]:
-
-# Encode 'targets' to categorical variables (2 categories: 0, 1)
-y_train_second_nn = keras.utils.np_utils.to_categorical(y_train_second)
-y_test_second_nn = keras.utils.np_utils.to_categorical(y_validate)
-
-
-# In[ ]:
-
-# Early stopping of training process (if no improvement)
-early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, mode='auto')
-
-history = LossHistory()
-# Fit model on train data
-model_blend.fit(X_train_second, y_train_second_nn, epochs=epochs_blend,
-                batch_size=batch_size, callbacks=[early_stop, history],
-                validation_data=(X_validate, y_test_second_nn),
-                shuffle=False, verbose=0)
+    # Compile network
+    model_blend.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
 
-# In[ ]:
+    # Encode 'targets' to categorical variables (2 categories: 0, 1)
+    y_train_second_nn = keras.utils.np_utils.to_categorical(y_train_second)
+    y_test_second_nn = keras.utils.np_utils.to_categorical(y_validate)
 
-# Score metrics (evaluate model on test data)
-score = model_blend.evaluate(X_validate, y_test_second_nn, batch_size=batch_size, verbose=1)
-print('\nLog-loss: {:g}, Accuracy: {:.2f} %'.format(score[0], score[1]*100))
+
+    # Early stopping of training process (if no improvement)
+    early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, mode='auto')
+
+    history = LossHistory()
+    # Fit model on train data
+    model_blend.fit(X_train_second, y_train_second_nn, epochs=epochs_blend,
+                    batch_size=batch_size, callbacks=[early_stop, history],
+                    validation_data=(X_validate, y_test_second_nn),
+                    shuffle=False, verbose=0)
+
+
+    # In[ ]:
+
+    # Score metrics (evaluate model on test data)
+    score = model_blend.evaluate(X_validate, y_test_second_nn, batch_size=batch_size, verbose=1)
+    print('\nLog-loss: {:g}, Accuracy: {:.2f} %'.format(score[0], score[1]*100))
+
+    # Execution time...
+    my_timer.benchmark()
 
 
 # ### C) Stacking different classifiers
+header("# Stacking different classifiers")
 
-# In[ ]:
+
 
 # Stacking best original features (11) and first stage predictions (10)
 # Select best original features
+print("# Select best original features")
 k_best = feature_selection.SelectKBest(feature_selection.f_classif, k=5)
 pca = PCA(n_components=6)
 # Make a union of features (FeatureUnion)
+print("# Make a union of features (FeatureUnion)")
 union = FeatureUnion([('KBest',k_best), ('PCA',pca)])
 union.fit(X_test, y_test)
 # Transform test data set (best features)
+print("# Transform test data set (best features)")
 X_test_best = union.transform(X_test)
 
 # Stack best features with first stage predictions (11+10=21)
@@ -1238,31 +1325,32 @@ print(X_test_union.shape)
 y_test_union = y_test[N:]
 print(y_test_union.shape)
 
+# Execution time...
+my_timer.benchmark()
 
 # #### Stacking with TensorFlow DNN Classifier
+header("# Stacking with TensorFlow DNN Classifier")
 
-# In[ ]:
 
 # TensorFlow Deep Neural Network Classifier (second stage classifier)
+print("# TensorFlow Deep Neural Network Classifier (second stage classifier)")
 features = learn.infer_real_valued_columns_from_input(X_train_union)
 
 # Optimizer algorithm
 adam = tf.train.AdamOptimizer(learning_rate=0.001)
 
 # Build a multi-layerr DNN for classification
+print("# Build a multi-layerr DNN for classification")
 model_dnn = learn.DNNClassifier(feature_columns=features, hidden_units=[1024, 512],
                                 n_classes=2, #model_dir="/tmp/numerai",
                                 optimizer=adam, activation_fn=tf.nn.relu,
                                 config=learn.estimators.RunConfig(num_cores=8))
 
 
-# In[ ]:
-
 # Fit model
+print("# Fit model")
 model_dnn.fit(X_train_union, y_train_union, steps=1000, batch_size=batch_size2)
 
-
-# In[ ]:
 
 # Evaluate on test data
 y_pred_proba_dnn = model_dnn.predict_proba(X_test_union)
@@ -1270,18 +1358,23 @@ y_pred_proba_dnn = model_dnn.predict_proba(X_test_union)
 log_loss_score = metrics.log_loss(y_test_union, y_pred_proba_dnn)
 print('Log-loss: {0:f}'.format(log_loss_score))
 
+# Execution time...
+my_timer.benchmark()
 
 # #### Stacking with Extremely Randomized Trees
+header("# Stacking with Extremely Randomized Trees")
 
-# In[ ]:
+
 
 mdl = ensemble.ExtraTreesClassifier()
 # Grid search for optimal parameters
+print("# Grid search for optimal parameters")
 params = {'n_estimators':[100, 400], 'criterion':['gini', 'entropy'], 'max_depth':[3, 5]}
 stacker = GridSearchCV(estimator=mdl, param_grid=params, cv=2,
                                    scoring='neg_log_loss', n_jobs=-1)
 stacker.fit(X_train_union, y_train_union)
 best_params = stacker.best_params_
+print("# Best params:")
 print(best_params)
 # Evaluate on test data
 y_pred_proba_stacker = stacker.predict_proba(X_test_union)
@@ -1289,15 +1382,19 @@ y_pred_proba_stacker = stacker.predict_proba(X_test_union)
 log_loss_score = metrics.log_loss(y_test_union, y_pred_proba_stacker)
 print('Log-loss: {0:f}'.format(log_loss_score))
 
+# Execution time...
+my_timer.benchmark()
 
 # #### Stacking with Keras Network using Merged branches
+header("# Stacking with Keras Network using Merged branches")
 
-# In[ ]:
+
 
 # Left branch (original features)
 model1 = keras.models.Sequential()
 # Input layer (features)
-model1.add(keras.layers.Dense(1024, input_shape=X_train.shape[1], init='glorot_uniform'))
+#model1.add(keras.layers.Dense(1024, input_shape=X_train.shape[1], init='glorot_uniform'))
+model1.add(keras.layers.Dense(1024, input_shape=(X_train.shape[1],), init='glorot_uniform'))
 model1.add(keras.layers.Activation('tanh'))
 model1.add(keras.layers.Dropout(0.5))
 # 1st layer
@@ -1312,7 +1409,8 @@ model1.add(keras.layers.Dropout(0.5))
 # Right branch (first-stage predictions)
 model2 = keras.models.Sequential()
 # Input layer (10 first-level prediction probabilities)
-model2.add(keras.layers.Dense(256, input_shape=proba_all.shape[1], init='glorot_uniform'))
+#model2.add(keras.layers.Dense(256, input_shape=proba_all.shape[1], init='glorot_uniform'))
+model2.add(keras.layers.Dense(256, input_shape=(proba_all.shape[1],), init='glorot_uniform'))
 model2.add(keras.layers.Activation('tanh'))
 model2.add(keras.layers.Dropout(0.5))
 # 1st layer
@@ -1363,14 +1461,13 @@ model_stack.fit([X_test[:N,:], X_train_second], y_train_union_nn,
                 shuffle=False, verbose=0)
 
 
-# In[ ]:
 
-plt.figure(figsize=(7,5))
-plt.plot(history.losses[::100])
-plt.show()
+if (plot_enabled == True):
+    plt.figure(figsize=(7,5))
+    plt.plot(history.losses[::100])
+    plt.show()
 
 
-# In[ ]:
 
 # Score metrics (evaluate model on test data)
 score = model_stack.evaluate([X_test[N:,:], X_validate], y_test_union_nn, batch_size=batch_size, verbose=1)
@@ -1378,14 +1475,51 @@ print('\nLog-loss: {:g}, Accuracy: {:.2f} %'.format(score[0], score[1]*100))
 
 
 # ### D) Averageing different classifiers
+header("# Averageing different classifiers")
 
 # #### Weighted arithmetic mean
 
-# In[ ]:
 
 # Select classifier outputs
-y_new_agg = proba_all[['keras', 'logreg', 'bayes', 'boost', 'forest', 'bagg', 'trees']]
-ws = [2, 2, 1, 1, 2, 1, 1]  # weights
+'''y_new_agg = proba_all[['keras', 'logreg', 'bayes', 'boost', 'forest', 'bagg', 'trees']]
+ws = [2, 2, 1, 1, 2, 1, 1]  # weights'''
+
+new_proba_all_list = []
+ws = [] # weights
+ws2 = [] # weights
+if (predict_proba_nn == True):
+    new_proba_all_list.append('keras')
+    ws.append(2)
+    ws2.append(1)
+if (predict_proba_logreg == True):
+    new_proba_all_list.append('logreg')
+    ws.append(2)
+    ws2.append(1)
+if (predict_proba_bayes == True):
+    new_proba_all_list.append('bayes')
+    ws.append(1)
+    ws2.append(1)
+if (predict_proba_boost == True):
+    new_proba_all_list.append('boost')
+    ws.append(1)
+    ws2.append(1)
+if (predict_proba_forest == True):
+    new_proba_all_list.append('forest')
+    ws.append(2)
+    ws2.append(1)
+if (predict_proba_bagg == True):
+    new_proba_all_list.append('bagg')
+    ws.append(1)
+    ws2.append(1)
+if (predict_proba_trees == True):
+    new_proba_all_list.append('trees')
+    ws.append(1)
+    ws2.append(1)
+
+
+y_new_agg = proba_all[new_proba_all_list]
+
+
 y_new_avr = np.average(y_new_agg, axis=1, weights=ws)
 # Classification accuracy metrics
 logloss = metrics.log_loss(y_test, y_new_avr)
@@ -1393,19 +1527,24 @@ print('Log-loss: {:.6f}'.format(logloss))
 
 
 # #### Weighted geometric mean
+print("# Weighted geometric mean")
 
 # In[ ]:
 
 # Select classifier outputs
+'''
 y_new_agg = proba_all[['keras', 'logreg', 'bayes', 'boost', 'forest', 'bagg', 'trees']].values
 ws = [1, 1, 1, 1, 1, 1, 1]  # weights
+'''
+y_new_agg = proba_all[new_proba_all_list].values
+ws = ws2  # weights
 y_new_avr = np.zeros(y_new_agg.shape)
 for i in range(y_new_agg.shape[0]):
     y_new_avr[i] = np.exp(np.sum(ws*np.log(y_new_agg[i,:]))/np.sum(ws))
 
 
 # ## Classify new samples (tournament data)
-
+print("# Classify new samples (tournament data)")
 # ### A) Using Voting (soft)
 
 # In[ ]:
@@ -1413,95 +1552,132 @@ for i in range(y_new_agg.shape[0]):
 # Classify new samples (tournament data)
 y_pred_proba_voting = voting.predict_proba(X_predict)
 y_proba_predicted = y_pred_proba_voting[:,1]
-y_proba_predicted.shape
+print("# y_proba_predicted.shape:")
+print(y_proba_predicted.shape)
 
 
 # ### B) Using Blending
+print("# Using Blending")
 
-# In[ ]:
-
-# 1) predict on new samples using the original classifiers
-y0 = model.predict_proba(X_predict, batch_size=batch_size)  # Keras Neural Network
-
-
-# In[ ]:
+new_proba_all_list_2 = []
 
 # 1) predict on new samples using the original classifiers
-y1 = grid.predict_proba(X_predict)       # Logistic regression
-y2 = calibrate.predict_proba(X_predict)  # Naive Bayes (calibrated)
-y3 = forest.predict_proba(X_predict)     # Random Forest
+if (predict_proba_nn == True):
+    y0 = model.predict_proba(X_predict, batch_size=batch_size)  # Keras Neural Network
+    new_proba_all_list_2.append(y0[:, 1])
 
-
-# In[ ]:
+# 1) predict on new samples using the original classifiers
+if (predict_proba_logreg == True):
+    y1 = grid.predict_proba(X_predict)       # Logistic regression
+    new_proba_all_list_2.append(y1[:, 1])
+if (predict_proba_bayes == True):
+    y2 = calibrate.predict_proba(X_predict)  # Naive Bayes (calibrated)
+    new_proba_all_list_2.append(y2[:, 1])
+if (predict_proba_forest == True):
+    y3 = forest.predict_proba(X_predict)     # Random Forest
+    new_proba_all_list_2.append(y3[:, 1])
 
 # 1) predict on new samples using the original classifiers (cont.)
-y4 = trees.predict_proba(X_predict)  # Extra Trees
-y5 = bagg.predict_proba(X_predict)   # Bagging
-y6 = boost.predict_proba(X_predict)  # Gradient Boosting
-
-
-# In[ ]:
+if (predict_proba_trees == True):
+    y4 = trees.predict_proba(X_predict)  # Extra Trees
+    new_proba_all_list_2.append(y4[:, 1])
+if (predict_proba_bagg == True):
+    y5 = bagg.predict_proba(X_predict)   # Bagging
+    new_proba_all_list_2.append(y5[:, 1])
+if (predict_proba_boost == True):
+    y6 = boost.predict_proba(X_predict)  # Gradient Boosting
+    new_proba_all_list_2.append(y6[:, 1])
 
 # 1) predict on new samples using the original classifiers (cont.)
-y7 = ada.predict_proba(X_predict)       # AdaBoost
-y8 = desc_cal.predict_proba(X_predict)  # Stochastic Gradient Descent (calibrated)
-y9 = knn.predict_proba(X_predict)       # K-Nearest Neighbors
-
-
-# In[ ]:
+if (predict_proba_ada == True):
+    y7 = ada.predict_proba(X_predict)       # AdaBoost
+    new_proba_all_list_2.append(y7[:, 1])
+if (predict_proba_desc == True):
+    y8 = desc_cal.predict_proba(X_predict)  # Stochastic Gradient Descent (calibrated)
+    new_proba_all_list_2.append(y8[:, 1])
+if (predict_proba_knn == True):
+    y9 = knn.predict_proba(X_predict)       # K-Nearest Neighbors
+    new_proba_all_list_2.append(y9[:, 1])
 
 # 2) Assemble predictions from the original classifiers
 # NOTE: It is important to follow the stacking order of the 'proba_all' dataframe!
-proba_all_new = np.c_[y0[:,1], y1[:,1], y2[:,1], y3[:,1], y4[:,1],
-                      y5[:,1], y6[:,1], y7[:,1], y8[:,1], y9[:,1]]
+'''proba_all_new = np.c_[y0[:,1], y1[:,1], y2[:,1], y3[:,1], y4[:,1],
+                      y5[:,1], y6[:,1], y7[:,1], y8[:,1], y9[:,1]]'''
+
+proba_all_new = np.c_[new_proba_all_list_2]
+
 
 
 # ####  with Logistic Regression
 
-# In[ ]:
+if (blend_logreg == True):
 
-# 3) Final prediction from the second stage classifier
-y_proba_predicted_logreg = grid_second.predict_proba(proba_all_new)
-y_proba_predicted_logreg.shape
+    header("#  with Logistic Regression")
+
+    # 3) Final prediction from the second stage classifier
+    y_proba_predicted_logreg = grid_second.predict_proba(proba_all_new)
+    print("# y_proba_predicted_logreg.shape:")
+    print(y_proba_predicted_logreg.shape)
 
 
 # #### with Linear Regression
 
-# In[ ]:
+if (blend_linear == True):
 
-# 3) Final prediction from the second stage classifier
-y_proba_predicted_linear = linear.predict(proba_all_new)
-y_proba_predicted_linear.shape
+    header("# with Linear Regression")
 
+    # 3) Final prediction from the second stage classifier
+    y_proba_predicted_linear = linear.predict(proba_all_new)
+    print("# y_proba_predicted_linear.shape:")
+    print(y_proba_predicted_linear.shape)
 
 # #### with Extremely Randomized Trees
 
-# In[ ]:
+if (blend_trees == True):
 
-# 3) Final prediction from the second stage regressor
-y_proba_predicted_trees = trees_second.predict_proba(proba_all_new)
-y_proba_predicted_trees.shape
+    header("# with Extremely Randomized Trees")
 
+
+    # 3) Final prediction from the second stage regressor
+    y_proba_predicted_trees = trees_second.predict_proba(proba_all_new)
+    print("# y_proba_predicted_trees.shape:")
+    print(y_proba_predicted_trees.shape)
 
 # #### with Keras Network Classifier
 
-# In[ ]:
+if (blend_nn == True):
 
-# 3) Final prediction from the second stage regressor
-y_proba_predicted_nn = model_blend.predict_proba(proba_all_new, batch_size=batch_size)
-y_proba_predicted_nn.shape
+    header("# with Keras Network Classifier")
+
+
+    # 3) Final prediction from the second stage regressor
+    y_proba_predicted_nn = model_blend.predict_proba(proba_all_new, batch_size=batch_size)
+    print("# y_proba_predicted_nn.shape:")
+    print(y_proba_predicted_nn.shape)
 
 
 # #### Weighted Average of blendings
+header("# Weighted Average of blendings")
 
-# In[ ]:
-
-proba_blended = np.c_[y_proba_predicted_logreg[:,1],  # from Logistic Regression
+'''proba_blended = np.c_[y_proba_predicted_logreg[:,1],  # from Logistic Regression
                       y_proba_predicted_linear,       # from Linear Regression
                       #y_proba_predicted_trees[:,1],   # from Extremly Randomised Trees
                       #y_proba_predicted_dnn[:,1],     # from TensorFlow DNN
                       y_proba_predicted_nn[:,1]]      # from Keras Network
-wsb = [1, 1, 1]
+wsb = [1, 1, 1]'''
+
+np.c_ = []
+wsb = []
+
+if (blend_logreg == True):
+    np.c_.append(y_proba_predicted_logreg[:,1])
+    wsb.append(1)
+if (blend_linear == True):
+    np.c_.append(y_proba_predicted_linear)
+    wsb.append(1)
+if (blend_nn == True):
+    np.c_.append(y_proba_predicted_nn[:,1])
+    wsb.append(1)
 
 mean_type = 'geometric'
 if mean_type == 'aritmetic':
@@ -1512,7 +1688,8 @@ elif mean_type == 'geometric':
     y_proba_predicted = np.zeros(proba_blended.shape[0])
     for i in range(proba_blended.shape[0]):
         y_proba_predicted[i] = np.exp(np.sum(wsb*np.log(proba_blended[i,:]))/np.sum(wsb))
-y_proba_predicted.shape
+print("# y_proba_predicted.shape:")
+print(y_proba_predicted.shape)
 
 
 # ### C) Using Stacking
@@ -1539,7 +1716,8 @@ X_predict_stack = np.c_[X_predict_best, proba_all_new]
 
 # 3) Final prediction from the second stage classifier
 y_proba_predicted_dnn = model_dnn.predict_proba(X_predict_stack)
-y_proba_predicted_dnn.shape
+print("# y_proba_predicted_dnn.shape:")
+print(y_proba_predicted_dnn.shape)
 
 
 # #### with Extremely Randomized Trees
@@ -1548,7 +1726,8 @@ y_proba_predicted_dnn.shape
 
 # 3) Final prediction from the second stage classifier
 y_proba_predicted_tree = stacker.predict_proba(X_predict_stack)
-y_proba_predicted_tree.shape
+print("# y_proba_predicted_tree.shape:")
+print(y_proba_predicted_tree.shape)
 
 
 # #### with Keras Network (Merged branches)
@@ -1557,14 +1736,15 @@ y_proba_predicted_tree.shape
 
 # 3) Final prediction from the second stage classifier
 y_proba_predicted_merge = model_stack.predict_proba([X_predict, proba_all_new], batch_size=batch_size)
-y_proba_predicted_merge.shape
+print("# y_proba_predicted_merge.shape:")
+print(y_proba_predicted_merge.shape)
 
 
 # #### Weighted Average of stackings
 
 # In[ ]:
 
-proba_stacked = np.c_[y_proba_predicted_dnn[:,1],    # from TenzorFlow DNN
+proba_stacked = np.c_[y_proba_predicted_dnn[:,1],    # from TensorFlow DNN
                       y_proba_predicted_tree[:,1],   # from Extremly randomized trees
                       y_proba_predicted_merge[:,1]]  # from Keras Network
 wss = [1, 1, 1]
@@ -1578,34 +1758,37 @@ elif mean_type == 'geometric':
     y_proba_predicted = np.zeros(proba_stacked.shape[0])
     for i in range(proba_stacked.shape[0]):
         y_proba_predicted[i] = np.exp(np.sum(wss*np.log(proba_stacked[i,:]))/np.sum(wss))
-y_proba_predicted.shape
+print("# y_proba_predicted.shape:")
+print(y_proba_predicted.shape)
 
 
 # ### D) Using Weighted Average of predictions
 
 # #### Aritmetic mean
 
-# In[ ]:
+
 
 # Assemble all individual predictions (proba_all_new)
 ws = [3, 4, 2, 1, 1, 1, 2, 3, 1, 2]  # weights (10)
 y_proba_predicted = np.average(proba_all_new, axis=1, weights=ws)
-y_proba_predicted.shape
+print("# y_proba_predicted.shape:")
+print(y_proba_predicted.shape)
 
 
 # #### Geometric mean
 
-# In[ ]:
+
 
 y_proba_predicted = np.zeros(proba_all_new.shape[0])
 for i in range(proba_all_new.shape[0]):
     y_proba_predicted[i] = np.exp(np.sum(ws*np.log(proba_all_new[i,:]))/np.sum(ws))
-y_proba_predicted.shape
+print("# y_proba_predicted.shape:")
+print(y_proba_predicted.shape)
 
 
 # ## Export preditions to csv
 
-# In[ ]:
+
 
 # Save predictions to external file
 with open('predictions.csv', 'w') as fout:
