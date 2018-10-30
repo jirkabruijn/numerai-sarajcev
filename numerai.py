@@ -1,34 +1,41 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
-tourn_nr = 127
-who = "bernie"
-user = "testing123"
+tourn_nr = 131
+who = "ken"
+user = "testing456"
 # dirloc = "local"
 dirloc = "server"
+# n_jobs = -1
+n_jobs = 3
 
-plot_enabled = False
-plot_predictivity = False
-plot_autocorrelation = False
-plot_losses_nn = False
-plot_corr_matrix = False
+split_method = 'random'  # possible values: random / order
 
-predict_proba_nn = False
+predict_proba_nn = True
 predict_proba_logreg = True
-predict_proba_svc = False
-predict_proba_bayes = True
-predict_proba_forest = True
+predict_proba_svc = False  # takes 2 days to run (291.201 seconds) and returns 0.693147
+predict_proba_bayes = False  # gives: 0.6931, 0.6928, 0.7002
+
+'''predict_proba_forest = True
 predict_proba_trees = True
 predict_proba_bagg = True
 predict_proba_boost = True
-predict_proba_ada = False
+predict_proba_ada = True
 predict_proba_desc = True
-predict_proba_knn = False
+predict_proba_knn = True'''
+#temporarily less:
+predict_proba_forest = True
+predict_proba_trees = False
+predict_proba_bagg = False
+predict_proba_boost = False
+predict_proba_ada = True
+predict_proba_desc = True
+predict_proba_knn = True
 
 blend_logreg = True
 blend_linear = True
 blend_trees = True
-blend_nn = False
+blend_nn = True
 
 reverse_dataset = False
 use_tsne = False
@@ -39,8 +46,14 @@ use_interactions = False
 batch_size = 512
 batch_size2 = 1024
 
-epochs = 20
-epochs_blend = 20
+epochs = 50
+epochs_blend = 50
+
+plot_enabled = False
+plot_predictivity = False
+plot_autocorrelation = False
+plot_losses_nn = False
+plot_corr_matrix = False
 
 '''
 from __future__ import print_function
@@ -56,8 +69,10 @@ warnings.filterwarnings('ignore')
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+if (plot_enabled):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
 
 # from sklearn import datasets
 from sklearn import metrics
@@ -100,10 +115,18 @@ target_drops = ['id', 'era', 'data_type', 'target_elizabeth', 'target_ken', 'tar
                 'target_jordan'];
 target_drops.remove(target_who)
 
+print("# -----------------------------------------------------------------------------------------------")
+print("# --- Tournament: {}".format(tourn_nr))
+print("# --- Dataset: {}".format(who))
+print("# --- As user: {}".format(user))
+print("# -----------------------------------------------------------------------------------------------")
+print("")
+
 
 class Timer:
     def __init__(self):
         self.start = time.time()
+        self.start_init = time.time()
         self.iter = 1
 
     def restart(self):
@@ -112,8 +135,10 @@ class Timer:
     def benchmark(self):
         end = time.time()
         ex_time = end - self.start
+        ex_time_init = end - self.start_init
         print("---")
         print('Execution time {}: {:g} seconds'.format(self.iter, ex_time))
+        print('Execution time from START {}: {:g} seconds'.format(self.iter, ex_time_init))
         print("---")
         self.iter = self.iter + 1
         self.restart()
@@ -134,8 +159,9 @@ def header(htext):
     print("# -------------------------------------------------")
 
 
-sns.set_context('notebook', font_scale=1.25)
-sns.set_style('darkgrid')
+if (plot_enabled == True):
+    sns.set_context('notebook', font_scale=1.25)
+    sns.set_style('darkgrid')
 
 # Start timer
 my_timer = Timer()
@@ -156,7 +182,6 @@ training_set = pd.read_csv(TRAINING_SET)
 test_set = pd.read_csv(TEST_SET, index_col=0)
 
 training_set = training_set.drop(target_drops, axis=1)
-test_set = test_set[test_set['data_type'] == 'validation']
 features = [f for f in list(training_set) if "feature" in f]
 
 print("# Lets have a look at the training set...")
@@ -198,7 +223,7 @@ if (reverse_dataset == True):
     test_set = test_set.iloc[::-1];
 
 # ## Train test dataset split
-
+header("# Train test dataset split")
 
 # Training dataset
 print("# Preparing Training dataset...")
@@ -207,36 +232,40 @@ print(X_data.shape)
 y_data = training_set[target_who].values
 print(y_data.shape)
 
+print("training_set.head =")
+print(training_set.head())
+
 # Prediction dataset
 print("# Preparing Prediction dataset...")
 # X_predict = test_set.values
 X_predict = test_set[features].values
+print("X_predict.shape:")
 print(X_predict.shape)
 
-# #### A) Split data while preserve ordering (time-series data?)
+if (split_method == 'order'):
 
+    # #### A) Split data while preserve ordering (time-series data?)
 
-# Split dataset into training and test sets (preserve ordering)
-header("# Split dataset into training and test sets (preserve ordering)...")
-percent = 0.85
-split = int(percent * X_data.shape[0])
-X_train = X_data[:split, :]
-y_train = y_data[:split]
-X_test = X_data[split:, :]
-y_test = y_data[split:]
-print(X_train.shape)
-print(y_train.shape)
-print(X_test.shape)
-print(y_test.shape)
+    header("# Split dataset into training and test sets (preserve ordering)...")
+    # Split dataset into training and test sets (preserve ordering)
 
-# #### B) Split data using random ordering
+    percent = 0.85
+    split = int(percent * X_data.shape[0])
+    X_train = X_data[:split, :]
+    y_train = y_data[:split]
+    X_test = X_data[split:, :]
+    y_test = y_data[split:]
+    print(X_train.shape)
+    print(y_train.shape)
+    print(X_test.shape)
+    print(y_test.shape)
+else:
+    # #### B) Split data using random ordering
 
-# In[20]:
-
-# Split data into train and test samples (random ordering)
-print("# Split data into train and test samples (random ordering)...")
-# X_train, X_test, y_train, y_test = model_selection.train_test_split(X_data, y_data, train_size=0.8)
-X_train, X_test, y_train, y_test = model_selection.train_test_split(X_data, y_data, test_size=0.2)
+    # Split data into train and test samples (random ordering)
+    print("# Split data into train and test samples (random ordering)...")
+    # X_train, X_test, y_train, y_test = model_selection.train_test_split(X_data, y_data, train_size=0.8)
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(X_data, y_data, test_size=0.2)
 
 # ### Feature engineering
 
@@ -352,7 +381,8 @@ if (use_interactions == True):
     X_train = np.c_[X_train, X_train_best, X_best_train_inter]
     X_test = np.c_[X_test, X_test_best, X_best_test_inter]
     X_predict = np.c_[X_predict, X_predict_best, X_best_pred_inter]
-    X_train.shape
+    print("# X_train.shape:")
+    print(X_train.shape)
 
     # Execution time...
     my_timer.benchmark()
@@ -385,19 +415,19 @@ if (predict_proba_nn == True):
     model.add(keras.layers.Activation('tanh'))
     model.add(keras.layers.Dropout(0.5))
     # hidden layer
-    model.add(keras.layers.Dense(512, init='glorot_uniform'))
+    model.add(keras.layers.Dense(512, kernel_initializer='glorot_uniform'))
     model.add(keras.layers.Activation('tanh'))
     model.add(keras.layers.Dropout(0.5))
     # hidden layer
-    model.add(keras.layers.Dense(256, init='glorot_uniform'))
+    model.add(keras.layers.Dense(256, kernel_initializer='glorot_uniform'))
     model.add(keras.layers.Activation('tanh'))
     model.add(keras.layers.Dropout(0.25))
     # hidden layer (delete)
-    model.add(keras.layers.Dense(128, init='glorot_uniform'))
+    model.add(keras.layers.Dense(128, kernel_initializer='glorot_uniform'))
     model.add(keras.layers.Activation('tanh'))
     model.add(keras.layers.Dropout(0.25))
     # Output layer
-    model.add(keras.layers.Dense(2, init='glorot_uniform'))
+    model.add(keras.layers.Dense(2, kernel_initializer='glorot_uniform'))
     # model.add(keras.layers.Dense(1, init='glorot_uniform')) #?????????????????????
     model.add(keras.layers.Activation('softmax'))
 
@@ -511,7 +541,7 @@ if (predict_proba_logreg == True):
     # grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
     #                                scoring='neg_log_loss', n_jobs=-1)
     grid = GridSearchCV(estimator=logreg, param_grid=param_grid, cv=3,
-                        scoring='neg_log_loss', n_jobs=-1, verbose=3)
+                        scoring='neg_log_loss', n_jobs=n_jobs, verbose=3)
     grid.fit(X_train, y_train)
     best_params = grid.best_params_
     print("# Grid search - best params:")
@@ -555,7 +585,7 @@ if (predict_proba_logreg == True):
     # Grid search with CV over pipeline
     params = {'logreg__C': [1., 10., 100.], 'logreg__penalty': ['l1', 'l2']}
     grid_pipe = GridSearchCV(pipeline, param_grid=params, cv=2,
-                             scoring='neg_log_loss', n_jobs=-1, verbose=3)
+                             scoring='neg_log_loss', n_jobs=n_jobs, verbose=3)
     grid_pipe.fit(X_train, y_train)
     best_params = grid_pipe.best_params_
     print("# Grid search - best params:")
@@ -647,7 +677,7 @@ if (predict_proba_forest == True):
 
     # Random Forest Classifier
     forest = ensemble.RandomForestClassifier(n_estimators=100, criterion='entropy',
-                                             max_depth=5, oob_score=True, n_jobs=-1)
+                                             max_depth=5, oob_score=True, n_jobs=n_jobs)
     # Fit
     forest.fit(X_train, y_train)
 
@@ -668,7 +698,7 @@ if (predict_proba_trees == True):
     header("# Extra Trees Classifier")
 
     # Extra Trees Classifier
-    trees = ensemble.ExtraTreesClassifier(n_estimators=100, criterion='entropy', max_depth=5, n_jobs=-1)
+    trees = ensemble.ExtraTreesClassifier(n_estimators=100, criterion='entropy', max_depth=5, n_jobs=n_jobs)
     # Fit
     trees.fit(X_train, y_train)
 
@@ -687,7 +717,7 @@ if (predict_proba_trees == True):
     # Grid search for optimal parameters
     params = {'n_estimators': [10, 50, 100, 200], 'criterion': ['gini', 'entropy'], 'max_depth': [5, 10, 15]}
     stacker = GridSearchCV(estimator=trees, param_grid=params, cv=2,
-                           scoring='neg_log_loss', n_jobs=-1)
+                           scoring='neg_log_loss', n_jobs=n_jobs)
     stacker.fit(X_train, y_train)
     best_params = stacker.best_params_
     print(best_params)
@@ -734,7 +764,7 @@ if (predict_proba_boost == True):
     # Grid search for optimal parameters
     params = {'max_depth': [5, 10], 'learning_rate': [0.001, 0.01], 'n_estimators': [100, 500]}
     boost = GridSearchCV(estimator=boost_, param_grid=params, cv=2,
-                         scoring='neg_log_loss', n_jobs=-1)
+                         scoring='neg_log_loss', n_jobs=n_jobs)
 
     # Fit using train data
     print("# Fit using train data")
@@ -752,23 +782,19 @@ if (predict_proba_boost == True):
     # Execution time...
     my_timer.benchmark()
 
-    # #### Feature importance
-
-    # In[26]:
-
-    # Feature importance
-    boost_features = ensemble.GradientBoostingClassifier(**best_params)
-    boost_features.fit(X_train, y_train)
-
-    # In[27]:
-
-    feature_importance = boost_features.feature_importances_
-    feature_importance = 100.0 * (feature_importance / feature_importance.max())
-    sorted_idx = np.argsort(feature_importance)
-    print("# sorted_idx:")
-    print(sorted_idx)
-
     if (plot_enabled == True):
+        # #### Feature importance
+
+        # Feature importance
+        boost_features = ensemble.GradientBoostingClassifier(**best_params)
+        boost_features.fit(X_train, y_train)
+
+        feature_importance = boost_features.feature_importances_
+        feature_importance = 100.0 * (feature_importance / feature_importance.max())
+        sorted_idx = np.argsort(feature_importance)
+        print("# sorted_idx:")
+        print(sorted_idx)
+
         # Visualize relative feature importance
         pos = np.arange(sorted_idx.shape[0]) + 1.
         fig, ax = plt.subplots(figsize=(6, 7))
@@ -778,11 +804,15 @@ if (predict_proba_boost == True):
         plt.tight_layout()
         plt.show()
 
-    # Take 3 best features with their interactions
-    best_3 = [0, 8, 20, (0, 8), (0, 20), (8, 20)]  # feature1, feature9, feature21
-    # One-way and two-way partial dependence plots
-    fig, ax = plt.subplots(figsize=(8, 7))
-    ensemble.partial_dependence.plot_partial_dependence(boost_features, X_train, best_3, ax=ax)
+        # One-way and two-way partial dependence plots
+
+        # Take 3 best features with their interactions
+        # best_3 = [0, 8, 20, (0, 8), (0, 20), (8, 20)]  # feature1, feature9, feature21
+        best_3 = [5, 27, 30, (5, 27), (5, 30), (27, 30)]  # feature6, feature28, feature31
+
+        fig, ax = plt.subplots(figsize=(8, 7))
+
+        ensemble.partial_dependence.plot_partial_dependence(boost_features, X_train, best_3, ax=ax)
 
     # Execution time...
     my_timer.benchmark()
@@ -801,7 +831,7 @@ if (predict_proba_ada == True):
     n_estimators = [50, 100]
     param_grid = dict(learning_rate=learning_rate, n_estimators=n_estimators)
     ada = GridSearchCV(estimator=ada_, param_grid=param_grid, cv=2,
-                       scoring='neg_log_loss', n_jobs=-1)
+                       scoring='neg_log_loss', n_jobs=n_jobs)
     # Fit using train data
     ada.fit(X_train, y_train)
     best_params = ada.best_params_
@@ -825,7 +855,7 @@ if (predict_proba_bagg == True):
     bagg = ensemble.BaggingClassifier(base_estimator=ensemble.ExtraTreesClassifier(n_estimators=50,
                                                                                    criterion='entropy', max_depth=5),
                                       n_estimators=100,
-                                      max_samples=0.6, max_features=0.8, oob_score=True, n_jobs=-1)
+                                      max_samples=0.6, max_features=0.8, oob_score=True, n_jobs=n_jobs)
     # Fit
     bagg.fit(X_train, y_train)
 
@@ -844,7 +874,7 @@ if (predict_proba_desc == True):
     header("# Stochastic Gradient Descent")
 
     desc = linear_model.SGDClassifier(loss='log', penalty='l1', learning_rate='constant', max_iter=100,
-                                      eta0=0.001, n_jobs=-1)
+                                      eta0=0.001, n_jobs=n_jobs)
     # Fit
     desc.fit(X_train, y_train)
 
@@ -873,7 +903,7 @@ if (predict_proba_knn == True):
     # K-Nearest Neighbors Classifier
     header("# K-Nearest Neighbors Classifier")
 
-    knn = KNeighborsClassifier(n_neighbors=600, weights='distance', metric='chebyshev', n_jobs=-1)
+    knn = KNeighborsClassifier(n_neighbors=600, weights='distance', metric='chebyshev', n_jobs=n_jobs)
     # Fit
     knn.fit(X_train, y_train)
 
@@ -1059,7 +1089,7 @@ if (blend_logreg == True):
     # Grid search for optimal parameters
     params = {'C': [0.1, 1., 10.], 'penalty': ['l1', 'l2']}
     grid_second = GridSearchCV(estimator=second, param_grid=params,
-                               cv=3, scoring='neg_log_loss', n_jobs=-1)
+                               cv=3, scoring='neg_log_loss', n_jobs=n_jobs)
     grid_second.fit(X_train_second, y_train_second)
     best_params = grid_second.best_params_
     print("# Best params:")
@@ -1117,7 +1147,7 @@ if (blend_trees == True):
     # #### Blending with Extremely Randomized Trees
     header("# Blending with Extremely Randomized Trees")
 
-    trees_second = ensemble.ExtraTreesClassifier(n_estimators=100, criterion='entropy', max_depth=5, n_jobs=-1)
+    trees_second = ensemble.ExtraTreesClassifier(n_estimators=100, criterion='entropy', max_depth=5, n_jobs=n_jobs)
     # Fit
     trees_second.fit(X_train_second, y_train_second)
     # Predict
@@ -1223,37 +1253,37 @@ my_timer.benchmark()
 
     # #### Stacking with TensorFlow DNN Classifier
     header("# Stacking with TensorFlow DNN Classifier")
-    
-    
+
+
     # TensorFlow Deep Neural Network Classifier (second stage classifier)
     print("# TensorFlow Deep Neural Network Classifier (second stage classifier)")
     features = learn.infer_real_valued_columns_from_input(X_train_union)
-    
+
     # Optimizer algorithm
     adam = tf.train.AdamOptimizer(learning_rate=0.001)
-    
+
     # Build a multi-layerr DNN for classification
     print("# Build a multi-layerr DNN for classification")
     model_dnn = learn.DNNClassifier(feature_columns=features, hidden_units=[1024, 512],
                                     n_classes=2, #model_dir="/tmp/numerai",
                                     optimizer=adam, activation_fn=tf.nn.relu,
                                     config=learn.estimators.RunConfig(num_cores=8))
-    
-    
+
+
     # Fit model
     print("# Fit model")
     model_dnn.fit(X_train_union, y_train_union, steps=1000, batch_size=batch_size2)
-    
-    
+
+
     # Evaluate on test data
     y_pred_proba_dnn = model_dnn.predict_proba(X_test_union)
     # Log-loss score
     log_loss_score = metrics.log_loss(y_test_union, y_pred_proba_dnn)
     print('Log-loss: {0:f}'.format(log_loss_score))
-    
+
     # Execution time...
     my_timer.benchmark()
-    
+
 '''
 
 ### --- END DEPRICATED --- ###
@@ -1267,7 +1297,7 @@ mdl = ensemble.ExtraTreesClassifier()
 print("# Grid search for optimal parameters")
 params = {'n_estimators': [100, 400], 'criterion': ['gini', 'entropy'], 'max_depth': [3, 5]}
 stacker = GridSearchCV(estimator=mdl, param_grid=params, cv=2,
-                       scoring='neg_log_loss', n_jobs=-1)
+                       scoring='neg_log_loss', n_jobs=n_jobs)
 stacker.fit(X_train_union, y_train_union)
 best_params = stacker.best_params_
 print("# Best params:")
@@ -1283,6 +1313,9 @@ my_timer.benchmark()
 
 # #### Stacking with Keras Network using Merged branches
 header("# Stacking with Keras Network using Merged branches")
+
+'''
+#-----
 
 # Left branch (original features)
 model1 = keras.models.Sequential()
@@ -1334,6 +1367,37 @@ sgd = keras.optimizers.SGD(lr=0.01, momentum=0.9, decay=1e-2, nesterov=True)
 # Compile network
 model_stack.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
+# -----
+'''
+
+# Left branch (original features)
+model1_in = keras.layers.Input(shape=(X_train.shape[1],))
+model1_out = keras.layers.Dense(1024, input_dim=(X_train.shape[1],), activation='tanh',
+                                kernel_initializer='glorot_uniform', name='layer_1')(model1_in)
+model1 = keras.models.Model(model1_in, model1_out)
+# Right branch (first-stage predictions)
+model2_in = keras.layers.Input(shape=(proba_all.shape[1],))
+model2_out = keras.layers.Dense(2, input_dim=(proba_all.shape[1],), activation='tanh',
+                                kernel_initializer='glorot_uniform', name='layer_2')(model2_in)
+model2 = keras.models.Model(model2_in, model2_out)
+
+# Merge branches
+concatenated = keras.layers.merge.concatenate([model1_out, model2_out])
+out = keras.layers.Dense(2, activation='softmax', kernel_initializer='glorot_uniform', name='output_layer')(
+    concatenated)
+model_stack = keras.models.Model([model1_in, model2_in], out)
+'''model_stack = model2 #because of "'Model' object has no attribute 'predict_proba'" occuring
+#  around line 1733 see part of code underneath, not doing a merge of Layers for now:
+# (line 1733)    # 3) Final prediction from the second stage classifier
+#                print("# Final prediction from the second stage classifier")
+#                y_proba_predicted_merge = model_stack.predict_proba([X_predict, proba_all_new], batch_size=batch_size)'''
+
+# Optimizer
+sgd = keras.optimizers.SGD(lr=0.01, momentum=0.9, decay=1e-2, nesterov=True)
+
+# Compile network
+model_stack.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
+
 # Encode 'targets' to categorical variables (2 categories: 0, 1)
 print("# Encode 'targets' to categorical variables (2 categories: 0, 1)")
 y_train_union_nn = keras.utils.np_utils.to_categorical(y_train_union)
@@ -1346,10 +1410,14 @@ history = LossHistory()
 # Fit model on train data
 print("# Fit model on train data")
 
-model_stack.fit([X_test[:N, :], X_train_second], y_train_union_nn,
-                nb_epoch=100, batch_size=batch_size, callbacks=[early_stop, history],
+model_stack.fit([X_test[:N, :], X_train_second], y=y_train_union_nn,
+                epochs=100, batch_size=batch_size, callbacks=[early_stop, history],
                 validation_data=([X_test[N:, :], X_validate], y_test_union_nn),
                 shuffle=False, verbose=0)
+'''model_stack.fit([X_train_second], y=y_train_union_nn,
+                epochs=100, batch_size=batch_size, callbacks=[early_stop, history],
+                validation_data=([X_validate], y_test_union_nn),
+                shuffle=False, verbose=0)'''
 
 # Execution time...
 my_timer.benchmark()
@@ -1361,6 +1429,7 @@ if (plot_enabled == True):
 
 # Score metrics (evaluate model on test data)
 score = model_stack.evaluate([X_test[N:, :], X_validate], y_test_union_nn, batch_size=batch_size, verbose=1)
+# score = model_stack.evaluate([X_validate], y_test_union_nn, batch_size=batch_size, verbose=1)
 print('\nLog-loss: {:g}, Accuracy: {:.2f} %'.format(score[0], score[1] * 100))
 
 # ### D) Averageing different classifiers
@@ -1447,7 +1516,10 @@ ws3 = []  # weights (ws = [3, 4, 2, 1, 1, 1, 2, 3, 1, 2]  # weights (10))
 
 # 1) predict on new samples using the original classifiers
 if (predict_proba_nn == True):
-    y0 = model.predict_proba(X_predict, batch_size=batch_size)  # Keras Neural Network
+    # y0 = model.predict_proba(X_predict, batch_size=batch_size)  # Keras Neural Network
+    X_predict_local = np.reshape(X_predict, (X_predict.shape[0], 1, X_predict.shape[1]))
+    # reason for the above see: https://stackoverflow.com/questions/44704435/error-when-checking-model-input-expected-lstm-1-input-to-have-3-dimensions-but
+    y0 = model.predict_proba(X_predict_local, batch_size=batch_size)  # Keras Neural Network
     new_proba_all_list_2.append(y0[:, 1])
     ws3.append(3)
 
@@ -1499,6 +1571,17 @@ if (predict_proba_knn == True):
                       y5[:,1], y6[:,1], y7[:,1], y8[:,1], y9[:,1]]'''
 
 proba_all_new = np.c_[new_proba_all_list_2]
+
+# Execution time...
+my_timer.benchmark()
+
+print("# proba_all_new:")
+print(proba_all_new)
+
+'''proba_all_new = np.c_[y1[:, 1]]
+
+print("# proba_all_new after CHANGE (testing...):")
+print(proba_all_new)'''
 
 # ####  with Logistic Regression
 
@@ -1559,29 +1642,42 @@ header("# Weighted Average of blendings")
                       y_proba_predicted_nn[:,1]]      # from Keras Network
 wsb = [1, 1, 1]'''
 
-np.c_ = []
-wsb = []
+wsb = list()
+np_c = list()
 
 if (blend_logreg == True):
-    np.c_.append(y_proba_predicted_logreg[:, 1])
+    np_c.append(y_proba_predicted_logreg[:, 1])
     wsb.append(1)
 if (blend_linear == True):
-    np.c_.append(y_proba_predicted_linear)
+    np_c.append(y_proba_predicted_linear)
     wsb.append(1)
 if (blend_nn == True):
-    np.c_.append(y_proba_predicted_nn[:, 1])
+    np_c.append(y_proba_predicted_nn[:, 1])
     wsb.append(1)
 
-proba_blended = np.c_
+proba_blended = np.c_[np_c]
 
-mean_type = 'geometric'
+print("# proba_blended:")
+print(proba_blended)
+print("# proba_blended[0]:")
+print(proba_blended[0])
+print("# proba_blended[1]:")
+print(proba_blended[1])
+print("wsb:")
+print(wsb)
+
+# mean_type = 'geometric' ### - Jirka - doesn't work for me....
+mean_type = 'aritmetic'
 if mean_type == 'aritmetic':
     # Aritmetic mean
-    y_proba_predicted = np.average(proba_blended, axis=1, weights=wsb)
+    y_proba_predicted = np.average(proba_blended, axis=0, weights=wsb)
 elif mean_type == 'geometric':
     # Geometric mean
-    y_proba_predicted = np.zeros(proba_blended.shape[0])
-    for i in range(proba_blended.shape[0]):
+    # y_proba_predicted = np.zeros(proba_blended.shape[0])
+    # for i in range(proba_blended.shape[0]):
+    #    y_proba_predicted[i] = np.exp(np.sum(wsb * np.log(proba_blended[i, :])) / np.sum(wsb))
+    # y_proba_predicted = np.zeros(proba_blended)
+    for i in range(proba_blended[1]):
         y_proba_predicted[i] = np.exp(np.sum(wsb * np.log(proba_blended[i, :])) / np.sum(wsb))
 print("# y_proba_predicted.shape:")
 print(y_proba_predicted.shape)
@@ -1599,11 +1695,44 @@ pca = PCA(n_components=6)
 # Make union of features
 union = FeatureUnion([('KBest', k_best), ('PCA', pca)])
 union.fit(X_train, y_train)
+
+print("X_predict:")
+print(X_predict)
+print("X_predict[0]")
+print(X_predict[0])
+print("X_predict[1]:")
+print(X_predict[1])
+
 # Transform predictions data set (tournament data)
 X_predict_best = union.transform(X_predict)
 
+print("X_predict_best:")
+print(X_predict_best)
+print("X_predict_best[0]")
+print(X_predict_best[0])
+print("X_predict_best[1]:")
+print(X_predict_best[1])
+print("X_predict_best[2]:")
+print(X_predict_best[2])
+print("X_predict_best[3]:")
+print(X_predict_best[3])
+
+'''X_predict_best[0][X_predict_best[0] <= 0.0] = 0.0
+X_predict_best[0][X_predict_best[0] >= 1.0] = 1.0
+X_predict_best[1][X_predict_best[1] <= 0.0] = 0.0
+X_predict_best[1][X_predict_best[1] >= 1.0] = 1.0'''
+
 # Stack best features (tournament data) and first-stage predictions (11+10=21)
 X_predict_stack = np.c_[X_predict_best, proba_all_new]
+
+# TODO: delete underneath if above works
+'''### don't know what was meant to be acchieved with the above, for now lets do this:
+temp_stack = ((X_predict_best[0] + X_predict_best[1]) / 2)
+temp_stack[temp_stack <= 0.0] = 0.0
+temp_stack[temp_stack >= 1.0] = 1.0
+
+# X_predict_stack = np.c_[X_predict_best[0]]
+X_predict_stack = np.c_[temp_stack]'''
 
 # #### with TensorFlow DNN Classifier
 
@@ -1630,7 +1759,8 @@ header("# with Keras Network (Merged branches)")
 
 # 3) Final prediction from the second stage classifier
 print("# Final prediction from the second stage classifier")
-y_proba_predicted_merge = model_stack.predict_proba([X_predict, proba_all_new], batch_size=batch_size)
+y_proba_predicted_merge = model_stack.predict([X_predict, proba_all_new], batch_size=batch_size)
+# y_proba_predicted_merge = model_stack.predict_proba([proba_all_new], batch_size=batch_size)
 print("# y_proba_predicted_merge.shape:")
 print(y_proba_predicted_merge.shape)
 
@@ -1641,6 +1771,12 @@ header("# Weighted Average of stackings")
                       y_proba_predicted_tree[:,1],   # from Extremly randomized trees
                       y_proba_predicted_merge[:,1]]  # from Keras Network
 wss = [1, 1, 1]'''
+
+### - jirka - skip the below for now and do this
+# proba_stacked = y_proba_predicted_merge[:, 1]
+y_proba_predicted = y_proba_predicted_merge[:, 1]
+'''
+
 proba_stacked = np.c_[y_proba_predicted_tree[:, 1],  # from Extremly randomized trees
                       y_proba_predicted_merge[:, 1]]  # from Keras Network
 wss = [1, 1]
@@ -1654,6 +1790,10 @@ elif mean_type == 'geometric':
     y_proba_predicted = np.zeros(proba_stacked.shape[0])
     for i in range(proba_stacked.shape[0]):
         y_proba_predicted[i] = np.exp(np.sum(wss * np.log(proba_stacked[i, :])) / np.sum(wss))
+
+'''
+
+'''
 print("# y_proba_predicted.shape:")
 print(y_proba_predicted.shape)
 
@@ -1673,11 +1813,15 @@ print(y_proba_predicted.shape)
 # #### Geometric mean
 print("# Geometric mean")
 
+print("proba_all_new.shape[0] = ")
+print(proba_all_new.shape[0])
+
 y_proba_predicted = np.zeros(proba_all_new.shape[0])
 for i in range(proba_all_new.shape[0]):
     y_proba_predicted[i] = np.exp(np.sum(ws * np.log(proba_all_new[i, :])) / np.sum(ws))
 print("# y_proba_predicted.shape:")
 print(y_proba_predicted.shape)
+'''
 
 # ## Export preditions to csv
 header("# Export preditions to csv")
@@ -1685,6 +1829,9 @@ header("# Export preditions to csv")
 # Save predictions to external file
 
 filename = ("{0}_{1}_{2}_subms.csv".format(tourn_nr, user, who))
+
+y_proba_predicted[y_proba_predicted <= 0.3] = 0.3
+y_proba_predicted[y_proba_predicted >= 0.7] = 0.7
 
 with open(filename, 'w') as fout:
     print('"id","{}"'.format(prob_who), file=fout)
